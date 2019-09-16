@@ -1,0 +1,45 @@
+{
+    "tag" : "Transonic, laminar, low-drag, high-lift, reflexed airfoil!",
+    "geometry" : {
+        "N" : 6,
+        "points" : "airfoil_geom.txt"
+    },
+    "generation" : {
+        "model" : "xfoil"
+    },
+    "degrees_of_freedom": [
+        {
+            "angle_of_attack" : {
+                "range" : [-20.0, 20.0],
+                "steps" : 40,
+                "fit_degree" : 3
+            }
+        },
+        {
+            "reynolds_number" : {
+                "range" : [10000.0, 500000.0],
+                "steps" : 5,
+                "fit_degree" : 2
+            }
+        },
+        {
+            "mach_number" : {
+                "range" : [0.0, 1.2],
+                "steps" : 20,
+                "fit_degree" : 4
+            }
+        },
+        {
+            "trailing_flap_deflection" : {
+                "range" : [-30, 30],
+                "steps" : 40,
+                "fit_degree" : 3,
+                "type" : "parabolic",
+                "hinge_chord" : 0.3
+            }
+        }
+    ],
+    "output" : {
+        "type" : "fit"
+    }
+}
