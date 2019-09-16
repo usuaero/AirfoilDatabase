@@ -1,5 +1,5 @@
-MachUpX
-=======
+Airfoil Database
+================
 
 .. toctree::
    :maxdepth: 2
