@@ -1,8 +1,12 @@
 {
     "tag" : "Transonic, laminar, low-drag, high-lift, reflexed airfoil!",
     "geometry" : {
-        "N" : 6,
-        "points" : "airfoil_geom.txt"
+        "N" : 50,
+        "points" : "airfoil_geom.txt",
+        or
+        "NACA" : "0012",
+        or
+        "thickness_dist" : 
     },
     "generation" : {
         "model" : "xfoil"
@@ -12,34 +16,60 @@
             "angle_of_attack" : {
                 "range" : [-20.0, 20.0],
                 "steps" : 40,
-                "fit_degree" : 3
+                "fit_degree" : [3, 2, 1] for CL, CD and Cm
             }
         },
         {
             "reynolds_number" : {
                 "range" : [10000.0, 500000.0],
                 "steps" : 5,
-                "fit_degree" : 2
+                "fit_degree" : [2, 2, 2]
             }
         },
         {
             "mach_number" : {
                 "range" : [0.0, 1.2],
                 "steps" : 20,
-                "fit_degree" : 4
+                "fit_degree" : [4, 4, 2]
             }
         },
         {
             "trailing_flap_deflection" : {
                 "range" : [-30, 30],
                 "steps" : 40,
-                "fit_degree" : 3,
+                "fit_degree" : [3, 4, 1],
                 "type" : "parabolic",
-                "hinge_chord" : 0.3
+                "chord_fraction" : 0.3
+            }
+        },
+        {
+            "leading_flap_deflection" : {
+                "range" : [-30, 30],
+                "steps" : 40,
+                "fit_degree" : [3, 4, 1],
+                "type" : "parabolic",
+                "chord_fraction" : 0.3
+            }
+        },
+        {
+            "camber_morphing" : {
+                "range" : [-0.1, 0.1],
+                "steps" : 11,
+                "fit_degree" : [2, 2, 2],
+                "equation" : "-a*x*(x-1.0)" a is the morphing parameter and x is the chord position
+            }
+        },
+        {
+            "thickness_morphing" : {
+                "range" : [0.1, 0.3],
+                "steps" : 5,
+                "fit_degree" : [2, 2, 2],
+                "equation" : "a*x*(x-1.0)"
             }
         }
     ],
     "output" : {
-        "type" : "fit"
+        "name" : "goates_002",
+        "type" : "fit" or "interpolation"
     }
 }

@@ -1,0 +1,29 @@
+{
+	"step 1" : {
+		"NACA" : "0015",
+		"xf" : 0.6,
+		"flap deflection" : {
+			"min" : -20.0,
+			"max" : 20.0,
+			"delta" : 1.0
+		},
+		"angle of attack" : {
+			"min" : -15.0,
+			"max" : 15.0,
+			"delta" : 0.1
+		},
+		"ncrit" : 9.0,
+		"xtr" : 0.1,
+		"Re" : 6.28e5,
+		"grid" : 240,
+		"Niter" : 150,
+		"excel file" : "trad"
+	},
+	"step 2" : {
+		"CL" : [4,6],
+		"CD" : [8,10],
+		"Cm" : [4,5],
+		"Ch" : [1,1]
+	}
+}
+
