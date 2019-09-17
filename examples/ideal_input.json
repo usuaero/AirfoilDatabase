@@ -7,9 +7,10 @@
         "NACA" : "0012",
         or
         "thickness_dist" : 
+        "camber_dist" :
     },
     "generation" : {
-        "model" : "xfoil"
+        "model" : "xfoil" or "vortex_panel"
     },
     "degrees_of_freedom": [
         {
