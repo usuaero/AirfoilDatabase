@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-The following Python packages are required:
+ AirfoilDatabase runs on Python 3 and the following Python packages are required:
 
 * numpy
 * scipy
@@ -12,7 +12,11 @@ The following Python packages are required:
 
 ### Getting Python
 
-If you do nothave Python installed on your machine, it can be downloaded from [https://www.anaconda.com/distribution/](https://www.anaconda.com/distribution/).
+If you do not have Python installed on your machine, it can be downloaded from [https://www.anaconda.com/distribution/](https://www.anaconda.com/distribution/).
+
+### Xfoil
+
+The core of AirfoilDatabase is a code called Xfoil, written by MIT. The Xfoil executable can be downloaded for Windows at [http://web.mit.edu/drela/Public/web/xfoil/](http://web.mit.edu/drela/Public/web/xfoil/). For Unix systems, compiling from the Fortran source code is required. Step by step instructions on how to do this can be found at [Xfoil Installation](xfoil_installation).
 
 ## Getting the Source Code
 

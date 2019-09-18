@@ -30,7 +30,7 @@ def execute(airfoil, alpha_start, target_alpha, delta_alpha, reynolds_number, gr
 	if os.path.exists(drag_polar_filename): os.remove(drag_polar_filename)
 	
 	# Start execution of XFOIL
-	with subprocess.Popen(['C:\\Users\\Zach\\Documents\\xfoil\\xfoil.exe'],
+	with subprocess.Popen([''],
 						  stdin = subprocess.PIPE,
 						  stdout = subprocess.PIPE
 						 ) as ps:
