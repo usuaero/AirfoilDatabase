@@ -31,28 +31,32 @@ class Airfoil(object):
 
         # Create a spline of the outline
         min_ind = np.argmin(self._raw_outline[:,0])
-        le_ind = min_ind#self._N0//2
+        le_ind = min_ind
         self._top_surface = interp.CubicSpline(self._raw_outline[le_ind::-1,0], self._raw_outline[le_ind::-1, 1], extrapolate=True)
         self._bottom_surface = interp.CubicSpline(self._raw_outline[le_ind:,0], self._raw_outline[le_ind:, 1], extrapolate=True)
 
         # Get first estimate of the camber line and thickness
-        x_c = np.linspace(self._raw_outline[le_ind,0]+0.001, np.max(self._raw_outline[:,0]), 100)
+        x_c = np.linspace(self._raw_outline[le_ind,0], np.max(self._raw_outline[:,0]), 100)
         y_c = (self._top_surface(x_c)+self._bottom_surface(x_c))/2.0
-        t_t = self._top_surface(x_c)-y_c
-        t_b = self._bottom_surface(x_c)-y_c
-        self._camber_line = interp.CubicSpline(x_c, y_c)
+        t_t = abs(self._top_surface(x_c)-y_c)
+        t_b = abs(self._bottom_surface(x_c)-y_c)
 
         # Show
         plt.figure()
-        plt.plot(self._raw_outline[:,0], self._raw_outline[:,1], 'b-', label='Outline')
+        plt.plot(self._raw_outline[:,0], self._raw_outline[:,1], 'b-', label='Raw Outline')
+        x_space = np.linspace(self._raw_outline[le_ind,0], np.max(self._raw_outline[:,0]), 10000)
+        plt.plot(x_space, self._top_surface(x_space), 'k--', label='Top Spline')
+        plt.plot(x_space, self._bottom_surface(x_space), 'k--', label='Bottom Spline')
         plt.plot(x_c, y_c, 'r--', label='Camber Line')
         plt.legend()
+        plt.gca().set_aspect('equal', adjustable='box')
         plt.show()
 
         # Iterate
         camber_error = 1
-        while camber_error > 1e-10:
+        while camber_error > 1e-9:
             print(camber_error)
+
             # Determine camber line slope
             dyc_dx = np.gradient(y_c, x_c)
             theta = np.arctan(dyc_dx)
@@ -62,6 +66,7 @@ class Airfoil(object):
             # Determine top thickness distribution
             thickness_error = 1
             while thickness_error > 1e-10:
+                print(thickness_error)
                 
                 # Guess point on surface
                 x_t_guess = x_c-t_t*S_theta
@@ -76,12 +81,11 @@ class Airfoil(object):
 
                 # Apply correction
                 t_t += correction
-                print(t_t)
-                input()
 
             # Determine bottom thickness distribution
             thickness_error = 1
             while thickness_error > 1e-10:
+                print(thickness_error)
                 
                 # Guess point on surface
                 x_b_guess = x_c+t_b*S_theta
@@ -96,8 +100,6 @@ class Airfoil(object):
 
                 # Apply correction
                 t_b -= correction
-                print(t_b)
-                input()
 
             # Calculate new camber line points and thickness
             x_c_new = (x_t_guess+x_b_guess)*0.5
@@ -119,6 +121,34 @@ class Airfoil(object):
         plt.plot(x_c, y_c, 'r--', label='Old Camber Line')
         plt.plot(x_c_new, y_c_new, 'g--', label='New Camber Line')
         plt.legend()
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.show()
+
+        # Store camber and thickness
+        self._x_c = x_c_new
+        self._y_c = y_c_new
+        self._camber_line = interp.CubicSpline(self._x_c, self._y_c, extrapolate=True)
+        self._t = t_t
+        self._thickness = interp.CubicSpline(self._x_c, self._t, extrapolate=True)
+
+        # Show estimate from camber and thickness splines
+        y_c_pred = self._camber_line(x_space)
+        dyc_dx = np.gradient(y_c_pred, x_space)
+        t_pred = self._thickness(x_space)
+        theta = np.arctan(dyc_dx)
+        S_theta = np.sin(theta)
+        C_theta = np.cos(theta)
+
+        x_b = x_space+t_pred*S_theta
+        y_b = y_c_pred-t_pred*C_theta
+        x_t = x_space-t_pred*S_theta
+        y_t = y_c_pred+t_pred*C_theta
+        
+        plt.plot(self._raw_outline[:,0], self._raw_outline[:,1], 'b-', label='Original Data')
+        plt.plot(x_t, y_t, 'r--', label='Top Fit')
+        plt.plot(x_b, y_b, 'r--', label='Bottom Fit')
+        plt.legend()
+        plt.gca().set_aspect('equal', adjustable='box')
         plt.show()
 
     
