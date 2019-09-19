@@ -1,4 +1,4 @@
-# Installing Xfoil on Unix (Linux and Mac) Systems
+# Compiling Xfoil on Unix (Linux and Mac) Systems
 The purpose of this document is to outline how to compile Xfoil on a Unix machine The system I am using to do this is Linux Mint 19.2 on an HP Z230 desktop. I cannot guarantee this process will work on your setup. It is possible to compile Xfoil using only the instructions in the READMEs (that's what I did), but hopefully this will be more clear.
 
 ## Compilers
@@ -32,13 +32,15 @@ We need to let the compiler know exactly where the osmap.dat file is. Around lin
 
 When done it should look something like this
 
-    DATA OSFILE / '/home/cory/Xfoil/orrs/osmap.dat' /
+    DATA OSFILE / '/home/cory/Xfoil/orrs/osmapDP.dat' /
 
-Note that I've removed the 'DP' from the filename. We'll have to do this in several other places. This is because this code was written back before dirt and default double precision. We no longer need to tell the compiler to use double precision because that what it will do automatically.
+Around line 75, there are options for setting the precision (either double or single). We want to ensure double precision here, so make sure the following lines are not commented
 
-At this point, the README tells you to edit another line to tell the compiler you want double precision. Again,not necessary. Save and exit osmap.f.
+        REAL RLSP, WLSP, HLSP,
+        &    RINCR, WINCR, RL, WL, HL,
+        &    A, AR, AW, AH, ARW, ARH, AWH, ARWH
 
-Navigate to the Xfoil/bin directory and open the Makefile
+Save and exit. Navigate to the Xfoil/bin directory and open the Makefile
 
     $ cd ../bin
     $ vim Makefile_DP
@@ -46,7 +48,7 @@ Navigate to the Xfoil/bin directory and open the Makefile
 Lines 14-17 contain the compiler flags. You'll need to edit these to fit your compiler. I made changes to the first two lines to be
 
     FC = gfortran
-    FLG = -0 -k8
+    FLG = -0 -f-default-real-8
 
 Save and exit Makefile_DP.
 
@@ -62,7 +64,7 @@ You may get a couple warnings; that's okay.
 ### Plot Library
 Navigate to the plotlib/ directory
 
-    $ cd ../plotlib
+    $ cd ../../plotlib
 
 Open Makefile
 
@@ -72,11 +74,11 @@ Edit line 72 to use the correct compiler
 
     FC = gfortran
 
-Save and exit. Do the same thing for line 54 in config.make
+You will also need to set double precision here. Uncomment line 77 and change it to be
 
-    FC = gfortran
+    DP = -f-default-real-8
 
-Save and exit. Compile the plot library
+Save and exit. Do the same thing for config.make. Specify the compiler on line 54 and the double precision option on line 58. Save and exit. Now you can compile the plot library
 
     $ make libPlt.a
 
@@ -92,12 +94,12 @@ You will need to make changes to lines 102, 111-116 in the Makefile. Line 102 sh
 
 Lines 111-116 should be
 
-    FFLAGS = -O -k8 -B
-    FFLOPT = -O -k8 -B
+    FFLAGS = -O -fdefault-real-8 -B
+    FFLOPT = -O -fdefault-real-8 -B
     PLTOBJ = ../plotlib/libPlt.a
 
-    FFLAGS = -O -k8 -ftrapv -fdec
-    FFLOPT = -O -k8 -ftrapv -fdec
+    FFLAGS = -O -fdefault-real-8 -ftrapv -fdec
+    FFLOPT = -O -fdefault-real-8 -ftrapv -fdec
 
 There are subtle differences between the above and what is originally in the file, so be careful. If you make mistakes, the compiler will usually let you know what it didn't understand. Save and exit.
 

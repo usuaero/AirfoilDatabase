@@ -42,35 +42,9 @@
                 "type" : "parabolic",
                 "chord_fraction" : 0.3
             }
-        },
-        {
-            "leading_flap_deflection" : {
-                "range" : [-30, 30],
-                "steps" : 40,
-                "fit_degree" : [3, 4, 1],
-                "type" : "parabolic",
-                "chord_fraction" : 0.3
-            }
-        },
-        {
-            "camber_morphing" : {
-                "range" : [-0.1, 0.1],
-                "steps" : 11,
-                "fit_degree" : [2, 2, 2],
-                "equation" : "-a*x*(x-1.0)" a is the morphing parameter and x is the chord position
-            }
-        },
-        {
-            "thickness_morphing" : {
-                "range" : [0.1, 0.3],
-                "steps" : 5,
-                "fit_degree" : [2, 2, 2],
-                "equation" : "a*x*(x-1.0)"
-            }
         }
     ],
     "output" : {
-        "name" : "goates_002",
-        "type" : "fit" or "interpolation"
+        "name" : "goates_002"
     }
 }

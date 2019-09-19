@@ -16,7 +16,11 @@ If you do not have Python installed on your machine, it can be downloaded from [
 
 ### Xfoil
 
-The core of AirfoilDatabase is a code called Xfoil, written by MIT. The Xfoil executable can be downloaded for Windows at [http://web.mit.edu/drela/Public/web/xfoil/](http://web.mit.edu/drela/Public/web/xfoil/). For Unix systems, compiling from the Fortran source code is required. Step by step instructions on how to do this can be found at [Xfoil Installation](xfoil_installation).
+The core of AirfoilDatabase is a code called Xfoil, written by MIT. The Xfoil executable can be downloaded for Windows at [http://web.mit.edu/drela/Public/web/xfoil/](http://web.mit.edu/drela/Public/web/xfoil/). This is also available as a package on some Linux distributions and can be installed like any other package. For example on Mint:
+
+    $ sudo apt-get install xfoil
+
+For other Unix systems where a package is not available, compiling from the Fortran source code is required. Step by step instructions on how to do this can be found at [Xfoil Installation](xfoil_installation). Note that AirfoilDatabase must be able to send only the command ```xfoil``` to the system to run the Xfoil executable. Please have this properly configured before trying to run AirfoilDatabase.
 
 ## Getting the Source Code
 

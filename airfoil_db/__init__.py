@@ -1,1 +1,1 @@
-import numpy as np
+from .airfoil import Airfoil
