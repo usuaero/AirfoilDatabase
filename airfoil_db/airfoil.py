@@ -32,11 +32,23 @@ class Airfoil(object):
         # Create a spline of the outline
         min_ind = np.argmin(self._raw_outline[:,0])
         le_ind = min_ind
-        self._top_surface = interp.CubicSpline(self._raw_outline[le_ind::-1,0], self._raw_outline[le_ind::-1, 1], extrapolate=True)
-        self._bottom_surface = interp.CubicSpline(self._raw_outline[le_ind:,0], self._raw_outline[le_ind:, 1], extrapolate=True)
+        self._x_t = np.copy(self._raw_outline[le_ind::-1,0])
+        self._y_t = np.copy(self._raw_outline[le_ind::-1, 1])
+        self._x_b = np.copy(self._raw_outline[le_ind:,0])
+        self._y_b = np.copy(self._raw_outline[le_ind:, 1])
+
+        self._top_surface = interp.UnivariateSpline(self._x_t, self._y_t, k=5, s=1e-10)
+        self._bottom_surface = interp.UnivariateSpline(self._x_b, self._y_b, k=5, s=1e-10)
 
         # Get first estimate of the camber line and thickness
-        x_c = np.linspace(self._raw_outline[le_ind,0], np.max(self._raw_outline[:,0]), 100)
+        self._x_le = self._raw_outline[le_ind,0]
+        self._y_le = self._raw_outline[le_ind,1]
+        self._x_te = np.max(self._raw_outline[:,0])
+
+        num_camber_points = 100
+        le_offset = 0.0
+        theta = np.linspace(0, np.pi, num_camber_points)
+        x_c = np.linspace(self._x_le+le_offset, self._x_te, num_camber_points)
         y_c = (self._top_surface(x_c)+self._bottom_surface(x_c))/2.0
         t_t = abs(self._top_surface(x_c)-y_c)
         t_b = abs(self._bottom_surface(x_c)-y_c)
@@ -44,10 +56,13 @@ class Airfoil(object):
         # Show
         plt.figure()
         plt.plot(self._raw_outline[:,0], self._raw_outline[:,1], 'b-', label='Raw Outline')
-        x_space = np.linspace(self._raw_outline[le_ind,0], np.max(self._raw_outline[:,0]), 10000)
+
+        x_space = np.linspace(self._x_le, self._x_te, 10000)
         plt.plot(x_space, self._top_surface(x_space), 'k--', label='Top Spline')
         plt.plot(x_space, self._bottom_surface(x_space), 'k--', label='Bottom Spline')
+
         plt.plot(x_c, y_c, 'r--', label='Camber Line')
+        plt.plot(x_c, np.gradient(y_c, x_c, edge_order=2), 'g--', label='Camber Line Derivative')
         plt.legend()
         plt.gca().set_aspect('equal', adjustable='box')
         plt.show()
@@ -55,63 +70,91 @@ class Airfoil(object):
         # Iterate
         camber_error = 1
         while camber_error > 1e-9:
-            print(camber_error)
-
             # Determine camber line slope
-            dyc_dx = np.gradient(y_c, x_c)
-            theta = np.arctan(dyc_dx)
-            S_theta = np.sin(theta)
-            C_theta = np.cos(theta)
+            dyc_dx = np.gradient(y_c, x_c, edge_order=2)
+            
+            # Determine slope of lines perpendicular to the camber
+            b = -1.0/dyc_dx
 
-            # Determine top thickness distribution
-            thickness_error = 1
-            while thickness_error > 1e-10:
-                print(thickness_error)
-                
-                # Guess point on surface
-                x_t_guess = x_c-t_t*S_theta
-                y_t_guess = y_c+t_t*C_theta
+            x_t = np.zeros(num_camber_points)
+            y_t = np.zeros(num_camber_points)
+            x_b = np.zeros(num_camber_points)
+            y_b = np.zeros(num_camber_points)
 
-                # Find true point
-                y_t_true = self._get_closest_outline_point_vertically(x_t_guess, y_t_guess)
+            # Loop through points on the camber line
+            for i in range(num_camber_points):
+                xc = x_c[i]
+                yc = y_c[i]
 
-                # Estimate error
-                correction = y_t_true-y_t_guess
-                thickness_error = np.max(np.abs(correction))
+                # Loop through panels on the surface to see which intersects the line perpendicular to the camber. Start on top.
+                for j in range(self._N0-1):
 
-                # Apply correction
-                t_t += correction
+                    # Determine slope of panel
+                    x0 = self._raw_outline[j,0]
+                    y0 = self._raw_outline[j,1]
+                    x1 = self._raw_outline[j+1,0]
+                    y1 = self._raw_outline[j+1,1]
+                    d = (y1-y0)/(x1-x0)
 
-            # Determine bottom thickness distribution
-            thickness_error = 1
-            while thickness_error > 1e-10:
-                print(thickness_error)
-                
-                # Guess point on surface
-                x_b_guess = x_c+t_b*S_theta
-                y_b_guess = y_c-t_b*C_theta
+                    # Find point of intersection
+                    x = (-d*x0+y0+b[i]*xc-yc)/(b[i]-d)
+                    y = b[i]*(x-xc)+yc
 
-                # Find true point
-                y_b_true = self._get_closest_outline_point_vertically(x_b_guess, y_b_guess)
+                    # If the intersection is on the panel, then keep that thickness
+                    sorted_x = sorted([x0, x1])
+                    sorted_y = sorted([y0, y1])
+                    if sorted_x[0] <= x <= sorted_x[1] and sorted_y[0] <= y <= sorted_y[1]:
+                        t_t[i] = np.sqrt((x-xc)**2+(y-yc)**2)
+                        x_t[i] = x
+                        y_t[i] = y
+                        break
 
-                # Estimate error
-                correction = y_b_true-y_b_guess
-                thickness_error = np.max(np.abs(correction))
+                # Now go through the bottom
+                for j in range(self._N0-1, -1, -1):
 
-                # Apply correction
-                t_b -= correction
+                    # Determine slope of panel
+                    x0 = self._raw_outline[j,0]
+                    y0 = self._raw_outline[j,1]
+                    x1 = self._raw_outline[j-1,0]
+                    y1 = self._raw_outline[j-1,1]
+                    d = (y1-y0)/(x1-x0)
 
-            # Calculate new camber line points and thickness
-            x_c_new = (x_t_guess+x_b_guess)*0.5
-            y_c_new = (y_t_guess+y_b_guess)*0.5
-            t = np.sqrt((x_t_guess-x_b_guess)**2+(y_t_guess-y_b_guess)**2)
-            t_t = t*0.5
-            t_b = t*0.5
+                    # Find point of intersection
+                    x = (-d*x0+y0+b[i]*xc-yc)/(b[i]-d)
+                    y = b[i]*(x-xc)+yc
+
+                    # If the intersection is on the panel, then keep that thickness
+                    sorted_x = sorted([x0, x1])
+                    sorted_y = sorted([y0, y1])
+                    if sorted_x[0] <= x <= sorted_x[1] and sorted_y[0] <= y <= sorted_y[1]:
+                        t_b[i] = np.sqrt((x-xc)**2+(y-yc)**2)
+                        x_b[i] = x
+                        y_b[i] = y
+                        break
+
+            # Calculate new camber line points
+            x_c_new = 0.5*(x_t+x_b)
+            y_c_new = 0.5*(y_t+y_b)
+
+            # Calculate new thickness
+            t_t = 0.5*np.sqrt((x_t-x_b)**2+(y_t-y_b)**2)
+            t_b = 0.5*np.sqrt((x_t-x_b)**2+(y_t-y_b)**2)
+
+            # Plot
+            plt.figure()
+            plt.plot(self._raw_outline[:,0], self._raw_outline[:,1], 'b-', label='Outline')
+            plt.plot(x_c, y_c, 'r--', label='Old Camber Line')
+            plt.plot(x_c_new, y_c_new, 'g--', label='New Camber Line')
+            plt.legend()
+            plt.gca().set_aspect('equal', adjustable='box')
+            plt.show()
 
             # Update for next iteration
-            x_diff = x_c-x_c_new
-            y_diff = y_c-y_c_new
+            x_diff = x_c_new-x_c
+            y_diff = y_c_new-y_c
             camber_error = np.max(np.sqrt(x_diff*x_diff+y_diff*y_diff))
+            print("Camber error: {0}".format(camber_error))
+
             x_c = x_c_new
             y_c = y_c_new
 
@@ -145,6 +188,7 @@ class Airfoil(object):
         y_t = y_c_pred+t_pred*C_theta
         
         plt.plot(self._raw_outline[:,0], self._raw_outline[:,1], 'b-', label='Original Data')
+        plt.plot(self._x_c, self._y_c, 'g--', label='Camber Line')
         plt.plot(x_t, y_t, 'r--', label='Top Fit')
         plt.plot(x_b, y_b, 'r--', label='Bottom Fit')
         plt.legend()
@@ -157,4 +201,4 @@ class Airfoil(object):
         y_t = self._top_surface(x)
         y_b = self._bottom_surface(x)
 
-        return np.where(np.abs(y_t-y)<np.abs(y_b-y), y_t, y_b)
+        return np.where(x<self._x_le, self._y_le, np.where(np.abs(y_t-y)<np.abs(y_b-y), y_t, y_b))
