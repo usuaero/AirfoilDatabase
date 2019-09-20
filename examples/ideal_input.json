@@ -1,10 +1,11 @@
 {
     "tag" : "Transonic, laminar, low-drag, high-lift, reflexed airfoil!",
     "geometry" : {
-        "N" : 50,
-        "points" : "airfoil_geom.txt",
+        "type" : "outline_points",
+        "data" : "airfoil_geom.txt",
         or
         "NACA" : "0012",
+        "N" : 50,
         or
         "thickness_dist" : 
         "camber_dist" :
