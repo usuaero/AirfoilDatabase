@@ -5,7 +5,7 @@ from .airfoil import Airfoil
 import json
 import copy
 
-class Generator(object):
+class Generator:
     """A class that creates an airfoil coefficient database from the user's input.
 
     Parameters

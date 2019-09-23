@@ -5,11 +5,14 @@ import matplotlib.pyplot as plt
 import scipy.interpolate as interp
 import scipy.signal as sig
 
-class Airfoil(object):
+class Airfoil:
     """A class defining an airfoil.
 
     Parameters
     ----------
+    name : str
+        User specified name for the airfoil.
+
     geom_file : str, optional
         Path to a geometry file containing the outline points to the airfoil. Must not have a header. Data should
         be organized in two columns, x and y, using standard airfoil coordinates. x Must go from 1.0 to 0.0 and back
@@ -22,14 +25,19 @@ class Airfoil(object):
     compare_to_NACA : str, optional
         The NACA designation for an airfoil you wish to compare the geometry to. Must be 4-digit.
 
+    NACA : str, optional
+        NACA designation for the airfoil. May not be specified along with a geometry file. Must be 4-digit.
+
     verbose : bool
     """
 
     def __init__(self, **kwargs):
         
+        self.name = kwargs.get("name")
         geom_file = kwargs.get("geom_file", None)
         compare_to_NACA = kwargs.get("compare_to_NACA", None)
         self._verbose = kwargs.get("verbose", False)
+        NACA = kwargs.get("NACA", None)
 
         # Import geometry points
         if geom_file is not None:
@@ -42,6 +50,15 @@ class Airfoil(object):
 
             if compare_to_NACA is not None:
                 self._check_against_NACA(compare_to_NACA)
+
+        elif NACA is not None:
+            self.type = "NACA"
+            self._naca_des = NACA
+
+            self._setup_NACA_equations()
+
+        else:
+            raise IOError("Airfoil designation not given.")
 
 
     def _calc_camber_line(self):
@@ -156,11 +173,6 @@ class Airfoil(object):
             #plt.gca().set_aspect('equal', adjustable='box')
             #plt.show()
 
-        del x_t
-        del y_t
-        del x_b
-        del y_b
-
         if self._verbose:
             # Plot
             plt.figure()
@@ -179,21 +191,20 @@ class Airfoil(object):
         b = -1.0/dyc_dx
 
         # Do the same thing as before but with smaller discretization
-        x_t = np.zeros_like(x_space)
-        x_b = np.zeros_like(x_space)
-        y_t = np.zeros_like(x_space)
-        y_b = np.zeros_like(x_space)
+        x_t_t = np.zeros(x_space.shape)
+        x_b_t = np.zeros(x_space.shape)
+        y_t_t = np.zeros(x_space.shape)
+        y_b_t = np.zeros(x_space.shape)
         for i, xc in enumerate(x_space):
             if i == 0: continue # This point intersects the outline by definition and so will have zero thickness
             yc = y_c[i]
             bi = b[i]
 
-            x_t[i], y_t[i] = self._get_intersection_point(xc, yc, bi, "top")
-            x_b[i], y_b[i] = self._get_intersection_point(xc, yc, bi, "bottom")
+            x_t_t[i], y_t_t[i] = self._get_intersection_point(xc, yc, bi, "top")
+            x_b_t[i], y_b_t[i] = self._get_intersection_point(xc, yc, bi, "bottom")
 
-        t = 0.5*np.sqrt((x_t-x_b)*(x_t-x_b)+(y_t-y_b)*(y_t-y_b))
-        print(t)
-        self._thickness = interp.UnivariateSpline(x_c_new, t, k=5, s=1e-10)
+        t = 0.5*np.sqrt((x_t_t-x_b_t)*(x_t_t-x_b_t)+(y_t_t-y_b_t)*(y_t_t-y_b_t))
+        self._thickness = interp.UnivariateSpline(x_space, t, k=5, s=1e-10)
 
         # Calculate estimated top and bottom points
         y_c_pred = self._camber_line(x_space)
@@ -304,6 +315,25 @@ class Airfoil(object):
             thickness_error = np.abs((t_est-t_true)/t_true)
             max_thickness_error = np.max(np.where(np.isfinite(thickness_error), thickness_error, 0.0))
             print("Max thickness error: {0:.5f}%".format(max_thickness_error*100))
+
+
+    def _setup_NACA_equations(self):
+        # Stores the camber and thickness getters based on the NACA designation of the airfoil
+        self._m = float(self._naca_des[0])/100
+        self._p = float(self._naca_des[1])/10
+        self._t = float(self._naca_des[2:])/100
+
+        # Camber line
+        def camber(x):
+            return np.where(x<p, self._m/self._p*self._p*(2*self._p*x-x*x), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x-x*x))
+
+        self._camber_line = camber
+
+        # Thickness
+        def thickness(x):
+            return 5.0*self._t*(0.2969*np.sqrt(x)-0.1260*x-0.3516*x*x+0.2843*x*x*x-0.1015*x*x*x*x)
+
+        self._thickness = thickness
 
 
     def export_outline(self, filename, N=200, cosine_cluster=True, trailing_flap_deflection=0.0):

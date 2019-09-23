@@ -2,7 +2,7 @@
 
 import numpy as np
 
-class Fitter(object):
+class Fitter:
     """A class for creating a polynomial fit to the generated airfoil data.
 
     Parameters
