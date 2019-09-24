@@ -87,7 +87,7 @@ class Airfoil:
 
         # Use cosine clustering to space points along the camber line
         if self._cosine_cluster:
-            theta = np.linspace(0, np.pi, num_camber_points)
+            theta = np.linspace(-np.pi, np.pi, num_camber_points)
             x_c = 0.5*(1-np.cos(theta))*(self._x_te-te_offset-self._x_le-le_offset)+le_offset
         else:
             x_c = np.linspace(self._x_le+le_offset, self._x_te-te_offset, num_camber_points)
@@ -165,13 +165,6 @@ class Airfoil:
             sorted_indices = np.argsort(x_c)
             x_c = x_c[sorted_indices]
             y_c = y_c[sorted_indices]
-
-            #plt.figure()
-            #plt.plot(x_b, y_b)
-            #plt.plot(x_t, y_t)
-            #plt.plot(x_c, y_c)
-            #plt.gca().set_aspect('equal', adjustable='box')
-            #plt.show()
 
         if self._verbose:
             # Plot
@@ -325,7 +318,7 @@ class Airfoil:
 
         # Camber line
         def camber(x):
-            return np.where(x<p, self._m/self._p*self._p*(2*self._p*x-x*x), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x-x*x))
+            return np.where(x<self._p, self._m/self._p*self._p*(2*self._p*x-x*x), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x-x*x))
 
         self._camber_line = camber
 
@@ -389,3 +382,36 @@ class Airfoil:
             outline_points[mid:,1] = y_b[:]
 
         np.savetxt(filename, outline_points, fmt='%10.5f')
+
+
+    def generate_database(self, degrees_of_freedom):
+        """Makes calls to Xfoil to calculate CL, CD, and Cm as a function of each given degree of freedom.
+
+        Parameters
+        ----------
+        degrees_of_freedom : dict
+            A dict specifying which degrees of freedom the database should perturb. Allowable degrees of 
+            freedom are:
+
+                "angle_of_attack"
+                "reynolds_number"
+                "mach_number"
+                "trailing_flap_deflection"
+
+            Each key should be one of these degrees of freedom. The value should then be a dictionary 
+            describing how that DOF should be perturbed. The following keys must be specified:
+
+                "range" : list
+                    The upper and lower limits for this DOF.
+
+                "steps" : int
+                    The number of points in the range to interrogate.
+
+            For "trailing_flap_deflection", two more keys may be specified:
+
+                "type" : str
+                    May be "parabolic" or "traditional".
+
+                "chord_fraction" : float
+                    The fraction of the total chord occupied by the flap.
+        """

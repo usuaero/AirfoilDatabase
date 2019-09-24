@@ -35,3 +35,7 @@ class Generator:
             outline_points = self._input_dict["geometry"]["data"]
             le_coords = self._input_dict["geometry"]["leading_edge_coords"]
             self.airfoil = Airfoil(geom_file=outline_points, leading_edge_coords=le_coords)
+
+        elif geometry_type == "NACA":
+            naca_des = self._input_dict.get("NACA")
+            self.airfoil  = Airfoil(NACA=naca_des)
