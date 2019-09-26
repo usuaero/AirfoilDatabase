@@ -19,9 +19,6 @@ class Airfoil:
         to 1.0. The top coordinates should be listed first, then the bottom. The leading edge is assumed to be the 
         median of these points.
 
-    leading_edge_coords : list, optional
-        x,y coordinates of the leading edge for an airfoil specified by geom_file. Defaults to [0.0, 0.0].
-
     compare_to_NACA : str, optional
         The NACA designation for an airfoil you wish to compare the geometry to. Must be 4-digit.
 
@@ -39,81 +36,159 @@ class Airfoil:
         self._verbose = kwargs.get("verbose", False)
         NACA = kwargs.get("NACA", None)
 
-        # Import geometry points
+        # Store undeformed outlines
+        self._initialize_geometry(geom_file, NACA)
+
+        # Check how well the camber line algorithm did
+        if self.geom_specification == "points" and compare_to_NACA is not None:
+            self._check_against_NACA(compare_to_NACA)
+
+
+    def _initialize_geometry(self, geom_file, NACA):
+        # Initialize geometry based on whether points or a NACA designation were given
+
+        # Check that there's only one geometry definition
+        if geom_file is not None and NACA is not None:
+            raise IOError("Outline points and a NACA designation may not be both specified for airfoil {0}.".format(self.name))
+
+        # Check for user-given points
         if geom_file is not None:
-            self.type = "geometric"
-            self._raw_outline = np.genfromtxt(geom_file, dtype=float)
-            self._N0 = self._raw_outline.shape[0]
-            self._x_le, self._y_le = kwargs.get("leading_edge_coords", [0.0, 0.0])
+            self.geom_specification = "points"
 
-            self._calc_camber_line()
+            with open(geom_file, 'r') as input_handle:
+                self._raw_outline = np.genfromtxt(input_handle)
 
-            if compare_to_NACA is not None:
-                self._check_against_NACA(compare_to_NACA)
+            self._N_orig = self._raw_outline.shape[0]
 
+            self._calc_geometry_from_points()
+
+        # NACA definition
         elif NACA is not None:
-            self.type = "NACA"
+            self.geom_specification = "NACA"
             self._naca_des = NACA
 
-            self._setup_NACA_equations()
+            self._calc_geometry_from_NACA()
+
+        # No geometry given
+        else:
+            self.geom_specification = "none"
+            return
+
+    
+    def _calc_geometry_from_NACA(self):
+        # Creates thickness, camber, camber derivative, and outline splines base on the NACA equations
+
+        # 4-digit series
+        if len(self._naca_des) == 4:
+
+            # Stores the camber and thickness getters based on the NACA designation of the airfoil
+            self._m = float(self._naca_des[0])/100
+            self._p = float(self._naca_des[1])/10
+            self._t = float(self._naca_des[2:])/100
+
+            # Camber line
+            def camber(x):
+                return np.where(x<self._p, self._m/self._p*self._p*(2*self._p*x-x*x), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x-x*x))
+
+            self._camber_line = camber
+
+            # Camber line derivative
+            def camber_deriv(x):
+                if abs(self._m)<1e-10 or abs(self._p)<1e-10: # Symmetric
+                    return np.zeros_like(x)
+                else:
+                    return np.where(x<self._p, 2*self._m/(self._p*self._p)*(self._p-x), 2*self._m/(1-self._p*self._p)*(self._p-x))
+
+            self._camber_deriv = camber_deriv
+
+            # Thickness
+            def thickness(x):
+                return 5.0*self._t*(0.2969*np.sqrt(x)-0.1260*x-0.3516*x*x+0.2843*x*x*x-0.1015*x*x*x*x)
+
+            self._thickness = thickness
 
         else:
-            raise IOError("Airfoil designation not given.")
+            raise IOError("Only 4-digit NACA specifications may be given. {0} is not 4-digit.".format(self._naca_des))
 
+        # Cosine distribution of chord locations
+        theta = np.linspace(-np.pi, np.pi, 200)
+        x = 0.5*(1-np.cos(theta))
 
-    def _calc_camber_line(self):
-        # Calculates the camber line and thickness distribution from the outline points
-        if self._verbose: print("Calculating camber line...")
+        y_c = self._camber_line(x)
+        dy_c_dx = self._camber_deriv(x)
+        t = self._thickness(x)
+
+        # Outline points
+        X = x-t*np.sin(np.arctan(dy_c_dx))*np.sign(theta)
+        Y = y_c+t*np.cos(np.arctan(dy_c_dx))*np.sign(theta)
+
+        outline_points = np.concatenate([X[:,np.newaxis], Y[:,np.newaxis]], axis=1)
 
         # Create splines defining the outline
+        self._x_outline, self._y_outline = self._create_splines_of_s(outline_points)
+
+
+    def _create_splines_of_s(self, outline_points):
+        # Creates x and y coordinate splines which are a function of the normalized distance along the outline
+
+        # Calculate distances
+        x_diff = np.diff(outline_points[:,0])
+        y_diff = np.diff(outline_points[:,1])
+        ds = np.sqrt(x_diff*x_diff+y_diff*y_diff)
+        ds = np.insert(ds, 0, 0.0)
+
+        # Create s distribution
+        s = np.cumsum(ds)
+        s_normed = s/s[-1]
+
+        # Create splines
+        x_outline = interp.UnivariateSpline(s_normed, outline_points[:,0], k=5, s=1e-10)
+        y_outline = interp.UnivariateSpline(s_normed, outline_points[:,1], k=5, s=1e-10)
+
+        return x_outline, y_outline
+
+
+    def _calc_geometry_from_points(self):
+        # Calculates the camber line and thickness distribution from the outline points.
+        # Also scales the airfoil, places the leading edge at the origin, and rotates it so it is at zero angle of attack.
+        if self._verbose: print("Calculating camber line...")
+
+        # Find the pseudo leading and trailing edge positions
+        te = (self._raw_outline[0]+self._raw_outline[-1])*0.5
         le_ind = np.argmin(self._raw_outline[:,0])
-        self._top_surface = interp.UnivariateSpline(self._raw_outline[le_ind::-1,0], self._raw_outline[le_ind::-1, 1], k=5, s=1e-10)
-        self._bottom_surface = interp.UnivariateSpline(self._raw_outline[le_ind:,0], self._raw_outline[le_ind:, 1], k=5, s=1e-10)
+        le = self._raw_outline[le_ind]
 
-        # Find points where |dy_dx| is greater than 1 and store these in a separate spline as a function of y
-        dy_dx = np.gradient(self._raw_outline[:,1], self._raw_outline[:,0])
-        self._leading_surface_indices = np.where(np.abs(dy_dx)>1.0)[0][::-1]
-        self._leading_surface = interp.UnivariateSpline(self._raw_outline[self._leading_surface_indices,1], self._raw_outline[self._leading_surface_indices,0], k=5, s=1e-10)
+        # Translate to origin, rotate, and scale
+        self._normalize_points(self._raw_outline, le, te)
 
-        # Find the leading and trailing edge positions
-        self._x_te = np.max(self._raw_outline[:,0])
+        # Create splines defining the outline
+        self._x_outline, self._y_outline = self._create_splines_of_s(self._raw_outline)
 
         # Camber line estimate parameters
         num_camber_points = 100
-        le_offset = 0.0
-        te_offset = 0.001
         camber_deriv_edge_order = 2
         self._cosine_cluster = False
 
         # Use cosine clustering to space points along the camber line
         if self._cosine_cluster:
             theta = np.linspace(-np.pi, np.pi, num_camber_points)
-            x_c = 0.5*(1-np.cos(theta))*(self._x_te-te_offset-self._x_le-le_offset)+le_offset
+            x_c = 0.5*(1-np.cos(theta))*(te[0]-le[0])
         else:
-            x_c = np.linspace(self._x_le+le_offset, self._x_te-te_offset, num_camber_points)
+            x_c = np.linspace(le[0], te[0], num_camber_points)
 
 
         # Get initial estimate for the camber line and thickness distributions
-        y_t = self._top_surface(x_c)
-        y_b = self._bottom_surface(x_c)
+        y_t = np.interp(x_c, self._raw_outline[le_ind::-1,0], self._raw_outline[le_ind::-1, 1])
+        y_b = np.interp(x_c, self._raw_outline[le_ind:,0], self._raw_outline[le_ind:, 1])
         y_c = 0.5*(y_t+y_b)
 
-        plt.figure()
-        plt.plot(x_c, y_b)
-        plt.plot(x_c, y_t)
-        plt.plot(x_c, y_c)
-        plt.gca().set_aspect('equal', adjustable='box')
-        plt.show()
-
-        x_space = np.linspace(0.0, 1.0, 1000)
+        x_space = np.linspace(0.0, 1.0, 10000)
 
         # Show
         if self._verbose:
             plt.figure()
             plt.plot(self._raw_outline[:,0], self._raw_outline[:,1], 'b-', label='Outline Data')
-
-            plt.plot(x_space, self._top_surface(x_space), 'k--', label='Top Outline Spline')
-            plt.plot(x_space, self._bottom_surface(x_space), 'k--', label='Bottom Outline Spline')
+            plt.plot(self._x_outline(x_space), self._y_outline(x_space), 'k--', label='Outline Spline')
             plt.plot(x_c, y_c, 'r--', label='Initial Camber Line Estimate')
             plt.plot(x_c, np.gradient(y_c, x_c, edge_order=camber_deriv_edge_order), 'g--', label='Camber Line Derivative')
             plt.legend()
@@ -128,7 +203,14 @@ class Airfoil:
 
         # Iterate through camber line estimates
         camber_error = 1
+
+        # Check for symmetric airfoil
+        if np.allclose(y_c, 0.0):
+            camber_error = 0.0
+
+        iteration = 0
         while camber_error > 1e-10:
+            iteration += 1
 
             # Determine camber line slope
             dyc_dx = np.gradient(y_c, x_c, edge_order=camber_deriv_edge_order)
@@ -158,32 +240,46 @@ class Airfoil:
             # Update for next iteration
             x_c = x_c_new
             y_c = y_c_new
-            x_c[0] = self._x_le # Force the camber line to always intersect the leading edge
-            y_c[0] = self._y_le
 
-            # Sort in x
-            sorted_indices = np.argsort(x_c)
-            x_c = x_c[sorted_indices]
-            y_c = y_c[sorted_indices]
+        # Calculate where the camber line intersects the outline to find the leading edge
+        dyc_dx = np.gradient(y_c, x_c, edge_order=2)
+        b = dyc_dx[0]
+        x_le, y_le = self._get_intersection_point(x_c[0], y_c[0], b, "leading_edge")
+        le = np.array([x_le, y_le])
+        x_c = np.insert(x_c, 0, le[0])
+        y_c = np.insert(y_c, 0, le[1])
+        if self._verbose: print("Leading edge: {0}".format(le))
 
         if self._verbose:
             # Plot
             plt.figure()
             plt.plot(self._raw_outline[:,0], self._raw_outline[:,1], 'b-', label='Outline Data')
-            plt.plot(x_c_new, y_c_new, 'g--', label='Final Camber Line Estimate')
+            plt.plot(x_c, y_c, 'g--', label='Final Camber Line Estimate')
             plt.legend()
             plt.gca().set_aspect('equal', adjustable='box')
             plt.show()
 
+        # Get trailing edge
+        te = (self._raw_outline[0]+self._raw_outline[-1])*0.5
+        if self._verbose: print("Trailing edge: {0}".format(te))
+
+        # Renormalize using new leading and trailing edge
+        self._normalize_points(self._raw_outline, le, te)
+        self._x_outline, self._y_outline = self._create_splines_of_s(self._raw_outline)
+
+        # Normalize camber line points
+        camber_points = np.concatenate([x_c[:,np.newaxis], y_c[:,np.newaxis]], axis=1)
+        self._normalize_points(camber_points, le, te)
+
         # Store camber
-        self._camber_line = interp.UnivariateSpline(x_c_new, y_c_new, k=5, s=1e-10)
+        self._camber_line = interp.UnivariateSpline(camber_points[:,0], camber_points[:,1], k=5, s=1e-10)
 
         # Calculate thickness
         y_c = self._camber_line(x_space)
         dyc_dx= np.gradient(y_c, x_space)
         b = -1.0/dyc_dx
 
-        # Do the same thing as before but with smaller discretization
+        # Find points on the surface to determine the thickness
         x_t_t = np.zeros(x_space.shape)
         x_b_t = np.zeros(x_space.shape)
         y_t_t = np.zeros(x_space.shape)
@@ -222,39 +318,100 @@ class Airfoil:
             plt.show()
 
 
-    def _get_intersection_point(self, xc, yc, b, surface):
-        # Calculates the point on the surface where the line extending from (xc, yc) with slope of b.
+    def _normalize_points(self, points, le_coords, te_coords):
+        # Takes the given points, translates them to the origin, rotates them to be at zero angle of attack, and scales so the chord length is unity
 
-        # Decide in which direction to go
+        # Translate
+        points[:,0] -= le_coords[0]
+        points[:,1] -= le_coords[1]
+
+        # Rotate
+        x_diff = te_coords[0]-le_coords[0]
+        y_diff = te_coords[1]-le_coords[1]
+        theta = -np.arctan2(y_diff, x_diff)
+        R = np.array([[np.cos(theta), -np.sin(theta)],
+                      [np.sin(theta),  np.cos(theta)]])
+        points = np.matmul(R, points.T)
+
+        #Scale
+        c_unscaled = np.sqrt(x_diff*x_diff+y_diff*y_diff)
+        points = points/c_unscaled
+
+
+    def _get_intersection_point(self, xc, yc, b, surface, plot=False):
+        # Calculates the point on the surface where the line extending from (xc, yc) with slope of b intersects
+        # Uses the secant method to converge in s
+
+        # Start s in the middle of the respective surface
         if surface == "top":
-            surface_range = range(self._N0-1)
-        else:
-            surface_range = range(self._N0-1, -1, -1)
+            s0 = 0.25
+            s1 = 0.26
+        elif surface == "bottom":
+            s0 = 0.75
+            s1 = 0.76
+        elif surface == "leading_edge":
+            s0 = 0.50
+            s1 = 0.51
 
-        # Loop through synthesized panels on the surface to see which intersects the line perpendicular to the camber.
-        for j in surface_range:
+        # Initial points on outline
+        x0 = self._x_outline(s0)
+        y0 = self._y_outline(s0)
+        x1 = self._x_outline(s1)
+        y1 = self._y_outline(s1)
 
-            # Determine slope of panel
-            x0 = self._raw_outline[j,0]
-            y0 = self._raw_outline[j,1]
-            if surface == "top":
-                x1 = self._raw_outline[j+1,0]
-                y1 = self._raw_outline[j+1,1]
+        # Initial distances
+        d0 = self._distance(x0, y0, xc, yc, b)
+        d1 = self._distance(x1, y1, xc, yc, b)
+
+        # Secant method
+        while abs(d1) > 1e-10:
+            
+            # Get new estimate in s
+            if d1 > 0.2: # Apply some relaxation when we're far away
+                s2 = s1-0.2*d1*(s0-s1)/(d0-d1)
             else:
-                x1 = self._raw_outline[j-1,0]
-                y1 = self._raw_outline[j-1,1]
-            d = (y1-y0)/(x1-x0)
+                s2 = s1-d1*(s0-s1)/(d0-d1)
 
-            # Find point of intersection
-            x = (-d*x0+y0+b*xc-yc)/(b-d)
-            y = b*(x-xc)+yc
+            # Make sure we're in bounds
+            if s2 > 1.1:
+                s2 = 1-0.01*s2
+            if s2 < -0.1:
+                s2 = -0.01*s2
 
-            # Determine if the point of intersection is on the panel
-            sorted_x = sorted([x0, x1])
-            sorted_y = sorted([y0, y1])
+            # Get new point
+            x2 = self._x_outline(s2)
+            y2 = self._y_outline(s2)
 
-            if sorted_x[0] <= x <= sorted_x[1] and sorted_y[0] <= y <= sorted_y[1]:
-                return x, y
+            # Get new distance
+            d2 = self._distance(x2, y2, xc, yc, b)
+
+            # Plot
+            if plot:
+                plt.figure()
+                s_space = np.linspace(0.0, 1.0, 1000)
+                plt.plot(self._x_outline(s_space), self._y_outline(s_space), 'b')
+                plt.plot(xc, yc, 'or')
+                plt.plot(x0, y0, 'bx')
+                plt.plot(x1, y1, 'gx')
+                plt.plot(x2, y2, 'rx')
+                plt.gca().set_aspect('equal', adjustable='box')
+                plt.show()
+
+            # Update for next iteration
+            s0 = s1
+            d0 = d1
+            x0 = x1
+            y0 = y1
+            s1 = s2
+            d1 = d2
+            x1 = x2
+            y1 = y2
+
+        return x1, y1
+
+
+    def _distance(self, x0, y0, x, y, b):
+        return (-b*x0+y0+b*x-y)/np.sqrt(b*b+1)
 
 
     def _check_against_NACA(self, naca_des):
@@ -267,7 +424,10 @@ class Airfoil:
             x_space = np.linspace(0.0, 1.0, 10000)
             m = float(naca_des[0])/100
             p = float(naca_des[1])/10
-            y_c_true = np.where(x_space<p, m/p**2*(2*p*x_space-x_space**2), m/(1-p)**2*(1-2*p+2*p*x_space-x_space**2))
+            if p != 0.0:
+                y_c_true = np.where(x_space<p, m/p**2*(2*p*x_space-x_space**2), m/(1-p)**2*(1-2*p+2*p*x_space-x_space**2))
+            else:
+                y_c_true = np.zeros_like(x_space)
 
             # True thickness
             t = float(naca_des[2:])/100
@@ -310,78 +470,56 @@ class Airfoil:
             print("Max thickness error: {0:.5f}%".format(max_thickness_error*100))
 
 
-    def _setup_NACA_equations(self):
-        # Stores the camber and thickness getters based on the NACA designation of the airfoil
-        self._m = float(self._naca_des[0])/100
-        self._p = float(self._naca_des[1])/10
-        self._t = float(self._naca_des[2:])/100
-
-        # Camber line
-        def camber(x):
-            return np.where(x<self._p, self._m/self._p*self._p*(2*self._p*x-x*x), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x-x*x))
-
-        self._camber_line = camber
-
-        # Thickness
-        def thickness(x):
-            return 5.0*self._t*(0.2969*np.sqrt(x)-0.1260*x-0.3516*x*x+0.2843*x*x*x-0.1015*x*x*x*x)
-
-        self._thickness = thickness
-
-
-    def export_outline(self, filename, N=200, cosine_cluster=True, trailing_flap_deflection=0.0):
-        """Exports the outline points of the airfoil for running through Xfoil.
+    def get_outline_points(self, N=200, cluster=True, trailing_flap_deflection=0.0, export=None):
+        """Returns an array of outline points showing the geometry of the airfoil.
 
         Parameters
         ----------
-        filename : str
-            Name of the file to output the results to.
+        N : int
+            The number of outline points to return. Defaults to 200.
 
-        N : int, optional
-            Number of outline points to export. Must be even. Defaults to 200.
-
-        cosine_cluster : bool, optional
-            Whether to use cosine clustering of outline points. Defaults to True
+        cluster : bool
+            Whether to cluster points about the leading and trailing edges. Defaults to True.
 
         trailing_flap_deflection : float, optional
             Trailing flap deflection in degrees (positive down). Defaults to zero.
+
+        export : str
+            If specified, the outline points will be saved to a file. Defaults to no file.
+
+        Returns
+        -------
+        ndarray
+            Outline points in airfoil coordinates.
         """
-        
-        # Check for even number of outline points
-        if N%2 != 0:
-            raise IOError("Number of outline points to export must be even.")
 
-        # Case with no deflection
-        if trailing_flap_deflection == 0.0:
-            
-            # Determine spacing of x points
-            if cosine_cluster:
-                theta = np.linspace(0.0, np.pi, N/2)
-                x_c = 0.5*(1-np.cos(theta))
+        # Check the geometry has been defined
+        if self.geom_specification != "none":
+            # Case with no deflection
+            if trailing_flap_deflection == 0.0:
+
+                # Determine spacing of points
+                if cluster:
+                # TODO: Implement cosine clustering
+                    s = np.linspace(0.0, 1.0, N)
+                else:
+                    s = np.linspace(0.0, 1.0, N)
+
+                # Get outline
+                X = self._x_outline(s)
+                Y = self._y_outline(s)
+                outline_points=  np.concatenate([X[:,np.newaxis], Y[:,np.newaxis]], axis=1)
+
+            # TODO: Implement flap equations
             else:
-                x_c = np.linspace(0.0, 1.0, N/2)
+                pass
 
-            # Get camber and thickness
-            y_c = self._camber_line(x_c)
-            dyc_dx = np.gradient(y_c, x_c)
-            t = self._thickness(x_c)
-            theta = np.arctan(dyc_dx)
-            S_theta = np.sin(theta)
-            C_theta = np.cos(theta)
+            # Save to file
+            if export is not None:
+                np.savetxt(export, outline_points, fmt='%10.5f')
 
-            x_b = x_c+t*S_theta
-            y_b = y_c-t*C_theta
-            x_t = x_c-t*S_theta
-            y_t = y_c+t*C_theta
-
-            outline_points = np.zeros((N, 2))
-            mid = int(N/2)
-            outline_points[:mid,0] = x_t[::-1]
-            outline_points[:mid,1] = y_t[::-1]
-            outline_points[mid:,0] = x_b[:]
-            outline_points[mid:,1] = y_b[:]
-
-        np.savetxt(filename, outline_points, fmt='%10.5f')
+        else:
+            raise RuntimeError("The geometry has not been defined for airfoil {0}.".format(self.name))
 
 
     def generate_database(self, degrees_of_freedom):
@@ -415,3 +553,8 @@ class Airfoil:
                 "chord_fraction" : float
                     The fraction of the total chord occupied by the flap.
         """
+        pass
+
+
+    def run_xfoil(self, **kwargs):
+        pass
