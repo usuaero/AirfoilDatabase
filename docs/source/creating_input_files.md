@@ -3,3 +3,11 @@ The input to the airfoil database generator is a JSON file. A JSON file is struc
 
 ## Input File Structure
 The following are keys which can be specified in the scene JSON object. NOTE: all keys not marked as optional are required. Key names typed in all capitals between carats (e.g. <KEY_VALUE>) are to be deterimined by the user.
+
+## Airfoil Object
+The following are keys which can be specified in the airfoil JSON object.
+>**"geometry" : dict**
+>>Contains information about the geometry of the airfoil.
+>>
+>>**"NACA" : str, optional
+>>>NACA designation

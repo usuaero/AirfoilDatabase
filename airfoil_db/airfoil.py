@@ -4,6 +4,33 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.interpolate as interp
 import scipy.signal as sig
+import subprocess as sp
+import json
+import copy
+
+class Flap:
+    """A class defining a flap.
+
+    Parameters
+    ----------
+    input_dict : dict
+        A dictionary describing the flap.
+
+    loc : str
+        Can be "trailing" or "leading".
+    """
+
+    def __init__(self, input_dict, loc):
+        self.loc = loc
+        self.type = input_dict.get("type", "linear")
+        if self.loc == "trailing":
+            def_x = 1.0
+        else:
+            def_x = 0.0
+        self.x = input_dict.get("x", def_x) # Default behavior is no flap
+        self.y = input_dict.get("y", 0.0)
+        self.is_sealed = input_dict.get("is_sealed", True)
+
 
 class Airfoil:
     """A class defining an airfoil.
@@ -11,43 +38,73 @@ class Airfoil:
     Parameters
     ----------
     name : str
-        User specified name for the airfoil.
+        Name of the airfoil.
 
-    geom_file : str, optional
-        Path to a geometry file containing the outline points to the airfoil. Must not have a header. Data should
-        be organized in two columns, x and y, using standard airfoil coordinates. x Must go from 1.0 to 0.0 and back
-        to 1.0. The top coordinates should be listed first, then the bottom. The leading edge is assumed to be the 
-        median of these points.
-
-    compare_to_NACA : str, optional
-        The NACA designation for an airfoil you wish to compare the geometry to. Must be 4-digit.
-
-    NACA : str, optional
-        NACA designation for the airfoil. May not be specified along with a geometry file. Must be 4-digit.
+    airfoil_input : dict or str
+        Dictionary or path to JSON object describing the airfoil.
 
     verbose : bool
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, name, airfoil_input, verbose=False):
         
-        self.name = kwargs.get("name")
-        geom_file = kwargs.get("geom_file", None)
-        compare_to_NACA = kwargs.get("compare_to_NACA", None)
-        self._verbose = kwargs.get("verbose", False)
-        NACA = kwargs.get("NACA", None)
+        self.name = name
+        self._load_params(airfoil_input)
+        self._verbose = verbose
+
+        # Load flaps
+        self._load_flaps()
 
         # Store undeformed outlines
-        self._initialize_geometry(geom_file, NACA)
-
-        # Check how well the camber line algorithm did
-        if self.geom_specification == "points" and compare_to_NACA is not None:
-            self._check_against_NACA(compare_to_NACA)
+        self._initialize_geometry()
 
 
-    def _initialize_geometry(self, geom_file, NACA):
+    def set_verbosity(self, verbosity):
+        """Sets the verbosity of the airfoil."""
+        self._verbose = verbosity
+
+
+    def _load_params(self, airfoil_input):
+
+        # Load input dict
+        if isinstance(airfoil_input, str):
+            # Load JSON object
+            with open(airfoil_input) as json_handle:
+                self._input_dict = json.load(json_handle)
+        elif isinstance(airfoil_input, dict):
+            self._input_dict = airfoil_input
+        else:
+            raise IOError("{0} is not an allowed airfoil definition. Must be path or dictionary.".format(airfoil_input))
+
+        # Store type
+        self._type = self._input_dict.get("type", "linear")
+
+        # If linear, store coefficients
+        if self._type == "linear":
+            self._aL0 = self._input_dict.get("aL0", 0.0)
+            self._CLa = self._input_dict.get("CLa", 2*np.pi)
+            self._CmL0 = self._input_dict.get("CmL0", 0.0)
+            self._Cma = self._input_dict.get("Cma", 0.0)
+            self._CD0 = self._input_dict.get("CD0", 0.0)
+            self._CD1 = self._input_dict.get("CD1", 0.0)
+            self._CD2 = self._input_dict.get("CD2", 0.0)
+            self._CL_max = self._input_dict.get("CL_max", np.inf)
+
+            self._CLM = self._input_dict.get("CLM", 0.0)
+            self._CLRe = self._input_dict.get("CLRe", 0.0)
+
+
+    def _load_flaps(self):
+        # Loads flaps based on the input dict
+        self._trailing_flap = Flap(self._input_dict.get("trailing_flap", {}), "trailing")
+
+
+    def _initialize_geometry(self):
         # Initialize geometry based on whether points or a NACA designation were given
 
         # Check that there's only one geometry definition
+        geom_file = self._input_dict.get("points", None)
+        NACA = self._input_dict.get("NACA", None)
         if geom_file is not None and NACA is not None:
             raise IOError("Outline points and a NACA designation may not be both specified for airfoil {0}.".format(self.name))
 
@@ -414,10 +471,19 @@ class Airfoil:
         return (-b*x0+y0+b*x-y)/np.sqrt(b*b+1)
 
 
-    def _check_against_NACA(self, naca_des):
-        # Checks the error in the camber and thickness against that predicted by the NACA equations
+    def check_against_NACA(self, naca_des):
+        """Checks the error in the camber and thickness against that predicted by the NACA equations. This is recommended as a check for the user
+        if unusual geometries are being imported.
+
+        Parameters
+        ----------
+        naca_des : str
+            NACA designation of the airfoil to compare against as a string. May only be 4-digit series.
+        """
+
         print("Checking estimated thickness and camber against NACA equations for NACA {0}...".format(naca_des))
 
+        # 4-digit series
         if len(naca_des) == 4:
 
             # Generate true coordinates
@@ -468,6 +534,147 @@ class Airfoil:
             thickness_error = np.abs((t_est-t_true)/t_true)
             max_thickness_error = np.max(np.where(np.isfinite(thickness_error), thickness_error, 0.0))
             print("Max thickness error: {0:.5f}%".format(max_thickness_error*100))
+
+
+    def get_CL(self, inputs):
+        """Returns the coefficient of lift.
+
+        Parameters
+        ----------
+        inputs : ndarray
+            Parameters which can affect the airfoil coefficients. The first
+            three are always alpha, Reynolds number, and Mach number. Fourth 
+            is flap efficiency and fifth is flap deflection.
+
+        Returns
+        -------
+        float
+            Lift coefficient
+        """
+        if self._type == "linear":
+            CL = self._CLa*(inputs[0]-self._aL0+inputs[3]*inputs[4])
+            if CL > self._CL_max or CL < -self._CL_max:
+                CL = np.sign(CL)*self._CL_max
+            return CL
+
+
+    def get_CD(self, inputs):
+        """Returns the coefficient of drag
+
+        Parameters
+        ----------
+        inputs : ndarray
+            Parameters which can affect the airfoil coefficients. The first
+            three are always alpha, Reynolds number, and Mach number. Fourth 
+            is flap efficiency and fifth is flap deflection.
+
+        Returns
+        -------
+        float
+            Drag coefficient
+        """
+        if self._type == "linear":
+            delta_flap = inputs[4]
+            inputs_wo_flap = copy.copy(inputs)
+            inputs_wo_flap[3:] = 0.0
+            CL = self.get_CL(inputs_wo_flap)
+            CD_flap = 0.002*np.abs(delta_flap)*180/np.pi # A rough estimate for flaps
+            return self._CD0+self._CD1*CL+self._CD2*CL**2+CD_flap
+
+
+    def get_Cm(self, inputs):
+        """Returns the moment coefficient
+
+        Parameters
+        ----------
+        inputs : ndarray
+            Parameters which can affect the airfoil coefficients. The first
+            three are always alpha, Reynolds number, and Mach number. Fourth 
+            is flap efficiency and fifth is flap deflection.
+
+        Returns
+        -------
+        float
+            Moment coefficient
+        """
+        if self._type == "linear":
+            return self._Cma*inputs[0]+self._CmL0+inputs[3]*inputs[4]
+
+
+    def get_aL0(self, inputs):
+        """Returns the zero-lift angle of attack
+
+        Parameters
+        ----------
+        inputs : ndarray
+            Parameters which can affect the airfoil coefficients. The first
+            three are always alpha, Reynolds number, and Mach number. Fourth 
+            is flap efficiency and fifth is flap deflection.
+
+        Returns
+        -------
+        float
+            Zero-lift angle of attack
+        """
+        if self._type == "linear":
+            return self._aL0
+
+
+    def get_CLM(self, inputs):
+        """Returns the lift slope with respect to Mach number
+
+        Parameters
+        ----------
+        inputs : ndarray
+            Parameters which can affect the airfoil coefficients. The first
+            three are always alpha, Reynolds number, and Mach number. Fourth 
+            is flap efficiency and fifth is flap deflection.
+
+        Returns
+        -------
+        float
+            Lift slope with respect to Mach number
+        """
+        if self._type == "linear":
+            return self._CLM
+
+
+    def get_CLRe(self, inputs):
+        """Returns the lift slope with respect to Reynolds number
+
+        Parameters
+        ----------
+        inputs : ndarray
+            Parameters which can affect the airfoil coefficients. The first
+            three are always alpha, Reynolds number, and Mach number. Fourth 
+            is flap efficiency and fifth is flap deflection.
+
+        Returns
+        -------
+        float
+            Lift slope with respect to Reynolds number
+        """
+        if self._type == "linear":
+            return self._CLRe
+
+
+    def get_CLa(self, inputs):
+        """Returns the lift slope
+
+        Parameters
+        ----------
+        inputs : ndarray
+            Parameters which can affect the airfoil coefficients. The first
+            three are always alpha, Reynolds number, and Mach number. Fourth 
+            is flap efficiency and fifth is flap deflection.
+
+        Returns
+        -------
+        float
+            Lift slope
+        """
+        if self._type == "linear":
+            return self._CLa
 
 
     def get_outline_points(self, N=200, cluster=True, trailing_flap_deflection=0.0, export=None):
@@ -557,4 +764,99 @@ class Airfoil:
 
 
     def run_xfoil(self, **kwargs):
-        pass
+        """Calls Xfoil and extracts the aerodynamic coefficients at the given state.
+
+        Parameters
+        ----------
+        alpha : float or list of float
+            Angle(s) of attack to calculate the coefficients at. Defaults to 0.0.
+
+        Rey : float or list of float
+            Reynolds number(s) to calculate the coefficients at. Defaults to 10000.
+
+        Mach : float or list of float
+            Mach number(s) to calculate the coefficients at. Defaults to 0.0.
+
+        trailing_flap_deflection : float or list of float
+            Flap deflection(s) to calculate the coefficients at. Defaults to 0.0.
+
+        N : int, optional
+            Number of panel nodes for Xfoil to use. Defaults to 200.
+        
+        Returns
+        -------
+        CL : ndarray
+            Coefficient of lift. First dimension will match the length of alpha, second will match Rey, etc.
+
+        CD : ndarray
+            Coefficient of drag. Dimensions same as CL.
+
+        Cm : ndarray
+            Moment coefficient. Dimensions same as CL.
+        """
+        N = kwargs.get("N", 200)
+        # Get states
+        
+        # Angle of attack
+        alphas = kwargs.get("alpha", [0.0])
+        if isinstance(alphas, float):
+            alphas = [alphas]
+    
+        # Reynolds number
+        Reys = kwargs.get("Rey", [0.0])
+        if isinstance(Reys, float):
+            Reys = [Reys]
+
+        # Mach number
+        Machs = kwargs.get("Mach", [0.0])
+        if isinstance(Machs, float):
+            Machs = [Machs]
+
+        # Flap deflections
+        delta_fts = kwargs.get("trailing_flap_deflection", [0.0])
+        if isinstance(delta_fts, float):
+            alphas = [delta_fts]
+
+        # Initialize xfoil execution
+        with sp.Popen([''], stdin=sp.PIPE, stdout=sp.PIPE) as xfoil_process:
+
+            # Loop through flap deflections
+            for delta_ft in delta_fts:
+                
+                # Export geometry
+                geom_file = "xfoil_geom_{0}.txt".format(delta_ft)
+                self.get_outline_points(trailing_flap_deflection=delta_ft, export=geom_file)
+
+                # Loop through Mach and Reynolds number
+                for M in Machs:
+                    for Re in Reys:
+
+                        # Polar accumulation file
+                        pacc_file = "xfoil_results_tf_{0}_M_{1}_Re_{2}.txt".format(delta_ft, M, Re)
+
+                        # Set up commands
+                        commands = ['LOAD {0}'.format(geom_file),
+                                    'new',
+                                    'EXEC',
+                                    'PPAR',
+                                    'N {0}'.format(N),
+                                    '',
+                                    'VISC {0}'.format(Re),
+                                    'MACH {0}'.format(M),
+                                    'PACC',
+                                    pacc_file,
+                                    '']
+
+                        # Loop through alphas
+                        for a in alphas:
+                            commands.append('ALFA {0}'.format(a))
+
+                        # Finish commands
+                        commands += ['PACC',
+                                     '']
+
+                        # Run Xfoil
+                        if self._verbose: print("Sweeping alpha for M: {0} Re: {1} delta_tf: {2}.".format(M, Re, delta_ft))
+                        commands = [com.encode('utf-8') for com in commands]
+                        response = xfoil_process.communicate(b'\n'.join(commands))[0].decode('utf-8')
+                        print(response)
