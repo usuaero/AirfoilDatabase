@@ -5,7 +5,8 @@ geometry_file = "test/NACA_9412_geom.txt"
 #geometry_file = "test/NACA_0012_geom.txt"
 airfoil_input = {
     "type" : "database",
-    "points" : geometry_file
+    #"points" : geometry_file
+    "NACA" : "9412"
 }
 airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True)
 airfoil.set_verbosity(True)

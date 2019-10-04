@@ -7,6 +7,7 @@ import scipy.signal as sig
 import subprocess as sp
 import json
 import copy
+import os
 
 class Flap:
     """A class defining a flap.
@@ -145,7 +146,7 @@ class Airfoil:
 
             # Camber line
             def camber(x):
-                return np.where(x<self._p, self._m/self._p*self._p*(2*self._p*x-x*x), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x-x*x))
+                return np.where(x<self._p, self._m/(self._p*self._p)*(2*self._p*x-x*x), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x-x*x))
 
             self._camber_line = camber
 
@@ -715,7 +716,7 @@ class Airfoil:
                 # Get outline
                 X = self._x_outline(s)
                 Y = self._y_outline(s)
-                outline_points=  np.concatenate([X[:,np.newaxis], Y[:,np.newaxis]], axis=1)
+                outline_points =  np.concatenate([X[:,np.newaxis], Y[:,np.newaxis]], axis=1)
 
             # TODO: Implement flap equations
             else:
@@ -782,6 +783,9 @@ class Airfoil:
 
         N : int, optional
             Number of panel nodes for Xfoil to use. Defaults to 200.
+
+        max_iter : int, optional
+            Maximum iterations for Xfoil. Defaults to 100.
         
         Returns
         -------
@@ -795,8 +799,9 @@ class Airfoil:
             Moment coefficient. Dimensions same as CL.
         """
         N = kwargs.get("N", 200)
+        max_iter = kwargs.get("max_iter", 100)
+
         # Get states
-        
         # Angle of attack
         alphas = kwargs.get("alpha", [0.0])
         if isinstance(alphas, float):
@@ -817,32 +822,44 @@ class Airfoil:
         if isinstance(delta_fts, float):
             alphas = [delta_fts]
 
-        # Initialize xfoil execution
-        with sp.Popen([''], stdin=sp.PIPE, stdout=sp.PIPE) as xfoil_process:
+        # Clean up from previous iterations
+        dir_list = os.listdir()
+        for item in dir_list:
+            if os.path.isfile(item) and ".adb" in item:
+                sp.call(['rm', item])
 
-            # Loop through flap deflections
-            for delta_ft in delta_fts:
-                
-                # Export geometry
-                geom_file = "xfoil_geom_{0}.txt".format(delta_ft)
-                self.get_outline_points(trailing_flap_deflection=delta_ft, export=geom_file)
+        # Loop through flap deflections
+        for delta_ft in delta_fts:
+            
+            # Export geometry
+            geom_file = os.path.abspath(r"xfoil_geom_{0}.adbg".format(delta_ft))
+            self.get_outline_points(trailing_flap_deflection=delta_ft, export=geom_file)
+
+            # Initialize xfoil execution
+            with sp.Popen(['xfoil'], stdin=sp.PIPE, stdout=sp.PIPE) as xfoil_process:
+
+                commands = []
+                pacc_index = 0
 
                 # Loop through Mach and Reynolds number
                 for M in Machs:
                     for Re in Reys:
 
                         # Polar accumulation file
-                        pacc_file = "xfoil_results_tf_{0}_M_{1}_Re_{2}.txt".format(delta_ft, M, Re)
+                        pacc_file = "xfoil_results_tf_{0}_M_{1}_Re_{2}.adbx".format(delta_ft, M, Re)
 
                         # Set up commands
-                        commands = ['LOAD {0}'.format(geom_file),
-                                    'new',
-                                    'EXEC',
+                        commands += ['LOAD {0}'.format(geom_file),
+                                    '{0}'.format(self.name),
                                     'PPAR',
-                                    'N {0}'.format(N),
+                                    'N',
+                                    '{0}'.format(N),
                                     '',
+                                    '',
+                                    'OPER',
                                     'VISC {0}'.format(Re),
                                     'MACH {0}'.format(M),
+                                    'ITER {0}'.format(max_iter),
                                     'PACC',
                                     pacc_file,
                                     '']
@@ -851,12 +868,20 @@ class Airfoil:
                         for a in alphas:
                             commands.append('ALFA {0}'.format(a))
 
-                        # Finish commands
-                        commands += ['PACC',
+                        # End polar accumulation
+                        commands += ['PACC {0}'.format(pacc_index),
                                      '']
+                        pacc_index += 1
 
-                        # Run Xfoil
-                        if self._verbose: print("Sweeping alpha for M: {0} Re: {1} delta_tf: {2}.".format(M, Re, delta_ft))
-                        commands = [com.encode('utf-8') for com in commands]
-                        response = xfoil_process.communicate(b'\n'.join(commands))[0].decode('utf-8')
-                        print(response)
+                # Finish commands
+                commands += ['',
+                             'QUIT']
+
+                # Run Xfoil
+                xfoil_input = '\r'.join(commands).encode('utf-8')
+                response = xfoil_process.communicate(xfoil_input)
+                print(response[0].decode('utf-8'))
+                if response[1] is not None:
+                    print(response[1].decode('utf-8'))
+
+            sp.call(['rm', geom_file])
