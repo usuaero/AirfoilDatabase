@@ -104,8 +104,9 @@ class Airfoil:
         # Initialize geometry based on whether points or a NACA designation were given
 
         # Check that there's only one geometry definition
-        geom_file = self._input_dict.get("points", None)
-        NACA = self._input_dict.get("NACA", None)
+        geom_dict = self._input_dict.get("geometry", {})
+        geom_file = geom_dict.get("outline_points", None)
+        NACA = geom_dict.get("NACA", None)
         if geom_file is not None and NACA is not None:
             raise IOError("Outline points and a NACA designation may not be both specified for airfoil {0}.".format(self.name))
 
@@ -799,66 +800,88 @@ class Airfoil:
             Moment coefficient. Dimensions same as CL.
         """
         N = kwargs.get("N", 200)
-        max_iter = kwargs.get("max_iter", 100)
+        max_iter = kwargs.get("max_iter", 200)
 
         # Get states
         # Angle of attack
         alphas = kwargs.get("alpha", [0.0])
         if isinstance(alphas, float):
             alphas = [alphas]
+        first_dim = len(alphas)
     
         # Reynolds number
         Reys = kwargs.get("Rey", [0.0])
         if isinstance(Reys, float):
             Reys = [Reys]
+        second_dim = len(Reys)
 
         # Mach number
         Machs = kwargs.get("Mach", [0.0])
         if isinstance(Machs, float):
             Machs = [Machs]
+        third_dim = len(Machs)
 
         # Flap deflections
         delta_fts = kwargs.get("trailing_flap_deflection", [0.0])
         if isinstance(delta_fts, float):
-            alphas = [delta_fts]
+            delta_fts = [delta_fts]
+        fourth_dim = len(delta_fts)
+
+        # Initialize coefficient arrays
+        CL = np.zeros((first_dim, second_dim, third_dim, fourth_dim))
+        CD = np.zeros((first_dim, second_dim, third_dim, fourth_dim))
+        Cm = np.zeros((first_dim, second_dim, third_dim, fourth_dim))
 
         # Clean up from previous iterations
         dir_list = os.listdir()
         for item in dir_list:
-            if os.path.isfile(item) and ".adb" in item:
+            if os.path.isfile(item) and ".pacc" in item or ".geom" in item:
                 sp.call(['rm', item])
 
+
         # Loop through flap deflections
-        for delta_ft in delta_fts:
+        for l, delta_ft in enumerate(delta_fts):
+            pacc_files = []
             
             # Export geometry
-            geom_file = os.path.abspath(r"xfoil_geom_{0}.adbg".format(delta_ft))
+            geom_file = os.path.abspath("xfoil_geom_{0}.geom".format(delta_ft))
             self.get_outline_points(trailing_flap_deflection=delta_ft, export=geom_file)
 
             # Initialize xfoil execution
             with sp.Popen(['xfoil'], stdin=sp.PIPE, stdout=sp.PIPE) as xfoil_process:
 
                 commands = []
+
+                # Read in geometry
+                commands += ['LOAD {0}'.format(geom_file),
+                             '{0}'.format(self.name)]
+
+                # Set viscous mode
+                commands += ['OPER',
+                             'VISC',
+                             '',
+                             '']
                 pacc_index = 0
 
                 # Loop through Mach and Reynolds number
-                for M in Machs:
-                    for Re in Reys:
+                for Re in Reys:
+                    for M in Machs:
 
                         # Polar accumulation file
-                        pacc_file = "xfoil_results_tf_{0}_M_{1}_Re_{2}.adbx".format(delta_ft, M, Re)
+                        pacc_file = "xfoil_results_tf_{0}_M_{1}_Re_{2}.pacc".format(delta_ft, M, Re)
+                        pacc_files.append(pacc_file)
 
                         # Set up commands
-                        commands += ['LOAD {0}'.format(geom_file),
-                                    '{0}'.format(self.name),
-                                    'PPAR',
+                        commands += ['PPAR',
                                     'N',
                                     '{0}'.format(N),
                                     '',
                                     '',
                                     'OPER',
-                                    'VISC {0}'.format(Re),
-                                    'MACH {0}'.format(M),
+                                    'RE',
+                                    str(Re),
+                                    'MACH',
+                                    str(M),
                                     'ITER {0}'.format(max_iter),
                                     'PACC',
                                     pacc_file,
@@ -880,8 +903,103 @@ class Airfoil:
                 # Run Xfoil
                 xfoil_input = '\r'.join(commands).encode('utf-8')
                 response = xfoil_process.communicate(xfoil_input)
-                print(response[0].decode('utf-8'))
-                if response[1] is not None:
-                    print(response[1].decode('utf-8'))
 
+                # Show output
+                if self._verbose:
+                    print(response[0].decode('utf-8'))
+                    if response[1] is not None:
+                        print(response[1].decode('utf-8'))
+
+            # Clean up geometry
             sp.call(['rm', geom_file])
+
+            # Read in files and store arrays
+            for filename in pacc_files:
+
+                # Read in file
+                alpha_i, CL_i, CD_i, Cm_i, Re_i, M_i = self.read_pacc_file(filename)
+
+                # Determine the Reynolds and Mach indices
+                j = Reys.index(Re_i)
+                k = Machs.index(M_i)
+
+                # Loop through alphas
+                for i_iter, alpha in enumerate(alpha_i):
+                    i_true = alphas.index(alpha)
+                    CL[i_true,j,k,l] = CL_i[i_iter]
+                    CD[i_true,j,k,l] = CD_i[i_iter]
+                    Cm[i_true,j,k,l] = Cm_i[i_iter]
+
+        # Clean up polar files
+        dir_list = os.listdir()
+        for item in dir_list:
+            if os.path.isfile(item) and ".pacc" in item:
+                sp.call(['rm', item])
+
+        return CL, CD, Cm
+
+
+    def read_pacc_file(self, filename):
+        """Reads in and formats an Xfoil polar accumulation file.
+
+        Parameters
+        ----------
+        filename : str
+            File to read in.
+
+        Returns
+        -------
+        alpha : list
+            List of angles of attack from the accumulation polar.
+
+        CL : list
+            Coefficient of lift at each alpha.
+
+        CD : list
+            Coefficient of drag at each alpha.
+        
+        Cm : list
+            Moment coefficient at each alpha.
+
+        Re : float
+            Reynolds number for the polar.
+
+        M : float
+            Mach number for the polar.
+        """
+
+        # Open file
+        with open(filename, 'r') as file_handle:
+
+            # Read in line by line
+            lines = []
+            line = file_handle.readline()
+            while line:
+                lines.append(line)
+                line = file_handle.readline()
+
+            # Find Mach and Reynolds number
+            mr_line = lines[8].split()
+            M = float(mr_line[2])
+            Re = float(''.join(mr_line[5:8]))
+
+            # Collect alpha and coefficients
+            alpha = []
+            CL = []
+            CD = []
+            Cm = []
+            for line in lines[12:]:
+                split_line = line.split()
+                alpha.append(float(split_line[0]))
+                CL.append(float(split_line[1]))
+                CD.append(float(split_line[2]))
+                Cm.append(float(split_line[4]))
+
+        return alpha, CL, CD, Cm, Re, M
+
+
+    def generate_database(self, **kwargs):
+        """Generates a .adb file which can be read in by the Airfoil class.
+
+        Parameters
+        ----------
