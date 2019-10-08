@@ -57,15 +57,3 @@ The following are keys which can be specified in the airfoil JSON object.
 >>
 >>**"is_sealed" : bool, optional**
 >>>Whether the hinge is sealed. Defaults to True.
->
->**"database" : dict, optional**
->>Parameters for generating/loading a database of airfoil coefficients.
->>
->>**"generate_database" : bool, optional**
->>>If set to true, Xfoil will be used to generate a database of airfoil coefficients. These will then be used in subsequent calculations.
->>
->>**"import_database" : str, optional**
->>>The path to a database file to import and use.
->>
->>**"export_database" : str, optional**
->>>Path to write the database file to.

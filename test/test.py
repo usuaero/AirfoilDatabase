@@ -11,10 +11,13 @@ airfoil_input = {
     }
 }
 
-airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True)
+airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
 
 alphas = [i-5 for i in range(11)]
 Reynolds = [10000.0, 50000.0, 100000.0]
 Machs = [0.0, 0.3, 0.5]
 
 CL, CD, Cm = airfoil.run_xfoil(alpha=alphas, Rey=Reynolds, Mach=Machs)
+print(CL)
+print(CD)
+print(Cm)

@@ -185,6 +185,7 @@ class Airfoil:
 
         # Create splines defining the outline
         self._x_outline, self._y_outline = self._create_splines_of_s(outline_points)
+        _,_,self._s_le = self._get_intersection_point(0.0, 0.0, dy_c_dx[0], "leading_edge")
 
 
     def _create_splines_of_s(self, outline_points):
@@ -283,8 +284,8 @@ class Airfoil:
                 yc = y_c[i]
                 bi = b[i]
 
-                x_t[i], y_t[i] = self._get_intersection_point(xc, yc, bi, "top")
-                x_b[i], y_b[i] = self._get_intersection_point(xc, yc, bi, "bottom")
+                x_t[i], y_t[i], _ = self._get_intersection_point(xc, yc, bi, "top")
+                x_b[i], y_b[i], _ = self._get_intersection_point(xc, yc, bi, "bottom")
 
             # Calculate new camber line points
             x_c_new = 0.5*(x_t+x_b)
@@ -303,7 +304,7 @@ class Airfoil:
         # Calculate where the camber line intersects the outline to find the leading edge
         dyc_dx = np.gradient(y_c, x_c, edge_order=2)
         b = dyc_dx[0]
-        x_le, y_le = self._get_intersection_point(x_c[0], y_c[0], b, "leading_edge")
+        x_le, y_le, self._s_le = self._get_intersection_point(x_c[0], y_c[0], b, "leading_edge")
         le = np.array([x_le, y_le])
         x_c = np.insert(x_c, 0, le[0])
         y_c = np.insert(y_c, 0, le[1])
@@ -348,8 +349,8 @@ class Airfoil:
             yc = y_c[i]
             bi = b[i]
 
-            x_t_t[i], y_t_t[i] = self._get_intersection_point(xc, yc, bi, "top")
-            x_b_t[i], y_b_t[i] = self._get_intersection_point(xc, yc, bi, "bottom")
+            x_t_t[i], y_t_t[i],_ = self._get_intersection_point(xc, yc, bi, "top")
+            x_b_t[i], y_b_t[i],_ = self._get_intersection_point(xc, yc, bi, "bottom")
 
         t = 0.5*np.sqrt((x_t_t-x_b_t)*(x_t_t-x_b_t)+(y_t_t-y_b_t)*(y_t_t-y_b_t))
         self._thickness = interp.UnivariateSpline(x_space, t, k=5, s=1e-10)
@@ -466,7 +467,7 @@ class Airfoil:
             x1 = x2
             y1 = y2
 
-        return x1, y1
+        return x1, y1, s1
 
 
     def _distance(self, x0, y0, x, y, b):
@@ -704,13 +705,22 @@ class Airfoil:
 
         # Check the geometry has been defined
         if self.geom_specification != "none":
+
             # Case with no deflection
             if trailing_flap_deflection == 0.0:
 
                 # Determine spacing of points
                 if cluster:
-                # TODO: Implement cosine clustering
-                    s = np.linspace(0.0, 1.0, N)
+                    # Divide points between top and bottom
+                    N_t = int(N*self._s_le)
+                    N_b = N-N_t
+                    
+                    # Create distributions using cosine clustering
+                    theta_t = np.linspace(0.0, np.pi, N_t)
+                    s_t = 0.5*(1-np.cos(theta_t))*self._s_le
+                    theta_b = np.linspace(0.0, np.pi, N_b)
+                    s_b = 0.5*(1-np.cos(theta_b))*(1-self._s_le)+self._s_le
+                    s = np.concatenate([s_t, s_b])
                 else:
                     s = np.linspace(0.0, 1.0, N)
 
@@ -727,8 +737,11 @@ class Airfoil:
             if export is not None:
                 np.savetxt(export, outline_points, fmt='%10.5f')
 
+            return outline_points
+
         else:
             raise RuntimeError("The geometry has not been defined for airfoil {0}.".format(self.name))
+
 
 
     def generate_database(self, degrees_of_freedom):
@@ -753,14 +766,6 @@ class Airfoil:
 
                 "steps" : int
                     The number of points in the range to interrogate.
-
-            For "trailing_flap_deflection", two more keys may be specified:
-
-                "type" : str
-                    May be "parabolic" or "traditional".
-
-                "chord_fraction" : float
-                    The fraction of the total chord occupied by the flap.
         """
         pass
 
@@ -996,10 +1001,3 @@ class Airfoil:
                 Cm.append(float(split_line[4]))
 
         return alpha, CL, CD, Cm, Re, M
-
-
-    def generate_database(self, **kwargs):
-        """Generates a .adb file which can be read in by the Airfoil class.
-
-        Parameters
-        ----------
