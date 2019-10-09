@@ -113,9 +113,13 @@ class Airfoil:
         # Check for user-given points
         if geom_file is not None:
             self.geom_specification = "points"
+            top_first = self._input_dict["geometry"]["top_first"]
 
             with open(geom_file, 'r') as input_handle:
-                self._raw_outline = np.genfromtxt(input_handle)
+                if top_first:
+                    self._raw_outline = np.genfromtxt(input_handle)
+                else:
+                    self._raw_outline = np.genfromtxt(input_handle)[::-1]
 
             self._N_orig = self._raw_outline.shape[0]
 
@@ -220,6 +224,9 @@ class Airfoil:
 
         # Translate to origin, rotate, and scale
         self._normalize_points(self._raw_outline, le, te)
+        le_ind = np.argmin(np.abs(self._raw_outline[:,0]))
+        le = [0.0, 0.0]
+        te = (self._raw_outline[0]+self._raw_outline[-1])*0.5
 
         # Create splines defining the outline
         self._x_outline, self._y_outline = self._create_splines_of_s(self._raw_outline)
@@ -268,9 +275,8 @@ class Airfoil:
         if np.allclose(y_c, 0.0):
             camber_error = 0.0
 
-        iteration = 0
+        # Iterate until convergence
         while camber_error > 1e-10:
-            iteration += 1
 
             # Determine camber line slope
             dyc_dx = np.gradient(y_c, x_c, edge_order=camber_deriv_edge_order)
@@ -296,6 +302,11 @@ class Airfoil:
             y_diff = y_c_new-y_c
             camber_error = np.max(np.sqrt(x_diff*x_diff+y_diff*y_diff))
             if self._verbose: print("Camber error: {0}".format(camber_error))
+
+            # Sort, just in case things got messed up
+            sorted_ind = np.argsort(x_c_new)
+            x_c_new = x_c_new[sorted_ind]
+            y_c_new = y_c_new[sorted_ind]
 
             # Update for next iteration
             x_c = x_c_new

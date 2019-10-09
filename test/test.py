@@ -1,17 +1,18 @@
 import airfoil_db as adb
 
-#geometry_file = "test/uCRM-9_fr0_profile.txt"
-geometry_file = "test/NACA_9412_geom.txt"
+geometry_file = "test/uCRM-9_wr0_xfoil.txt"
+#geometry_file = "test/NACA_9412_geom.txt"
 #geometry_file = "test/NACA_0012_geom.txt"
 airfoil_input = {
     "type" : "database",
     "geometry" : {
-        #"outline_points" : geometry_file
-        "NACA" : "9412"
+        "outline_points" : geometry_file,
+        "top_first" : True
+        #"NACA" : "9412"
     }
 }
 
-airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
+airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True)
 
 alphas = [i-5 for i in range(11)]
 Reynolds = [10000.0, 50000.0, 100000.0]
