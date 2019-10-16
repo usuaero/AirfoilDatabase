@@ -29,7 +29,6 @@ class Flap:
         else:
             def_x = 0.0
         self.x = input_dict.get("x", def_x) # Default behavior is no flap
-        self.y = input_dict.get("y", 0.0)
         self.is_sealed = input_dict.get("is_sealed", True)
 
 
@@ -113,16 +112,21 @@ class Airfoil:
         # Check for user-given points
         if geom_file is not None:
             self.geom_specification = "points"
-            top_first = self._input_dict["geometry"]["top_first"]
 
+            # Import
             with open(geom_file, 'r') as input_handle:
-                if top_first:
-                    self._raw_outline = np.genfromtxt(input_handle)
-                else:
-                    self._raw_outline = np.genfromtxt(input_handle)[::-1]
+                self._raw_outline = np.genfromtxt(input_handle)
 
+            # Get number of points
             self._N_orig = self._raw_outline.shape[0]
 
+            # Rearrange the coordinates if necessary to be top first then bottom
+            top_ind = np.argmax(self._raw_outline[:,1])
+            bot_ind = np.argmin(self._raw_outline[:,1])
+            if bot_ind < top_ind: # Bottom came first
+                self._raw_outline = self._raw_outline[::-1]
+
+            # Calculate camber line and thickness
             self._calc_geometry_from_points()
 
         # NACA definition
@@ -232,7 +236,7 @@ class Airfoil:
         self._x_outline, self._y_outline = self._create_splines_of_s(self._raw_outline)
 
         # Camber line estimate parameters
-        num_camber_points = self._raw_outline.shape[0]//5 # As recommended by Cody Cummings to avoid discontinuities in dyc/dx
+        num_camber_points = self._N_orig//5 # As recommended by Cody Cummings to avoid discontinuities in dyc/dx
         camber_deriv_edge_order = 2
         self._cosine_cluster = False
         le_offset = 0.0001
@@ -702,7 +706,7 @@ class Airfoil:
             return self._CLa
 
 
-    def get_outline_points(self, N=200, cluster=True, trailing_flap_deflection=0.0, export=None):
+    def get_outline_points(self, N=200, cluster=True, trailing_flap_deflection=0.0, export=None, top_first=True):
         """Returns an array of outline points showing the geometry of the airfoil.
 
         Parameters
@@ -718,6 +722,10 @@ class Airfoil:
 
         export : str
             If specified, the outline points will be saved to a file. Defaults to no file.
+
+        top_first : bool
+            The order of the coordinates when exported. Defaults to going from the trailing edge along the top and
+            the around to the bottom.
 
         Returns
         -------
@@ -747,6 +755,8 @@ class Airfoil:
                     s = np.linspace(0.0, 1.0, N)
 
                 # Get outline
+                if not top_first:
+                    s = s[::-1]
                 X = self._x_outline(s)
                 Y = self._y_outline(s)
                 outline_points =  np.concatenate([X[:,np.newaxis], Y[:,np.newaxis]], axis=1)
