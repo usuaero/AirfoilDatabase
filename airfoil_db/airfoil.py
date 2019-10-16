@@ -232,16 +232,17 @@ class Airfoil:
         self._x_outline, self._y_outline = self._create_splines_of_s(self._raw_outline)
 
         # Camber line estimate parameters
-        num_camber_points = 100
+        num_camber_points = self._raw_outline.shape[0]//5 # As recommended by Cody Cummings to avoid discontinuities in dyc/dx
         camber_deriv_edge_order = 2
         self._cosine_cluster = False
+        le_offset = 0.0001
 
         # Use cosine clustering to space points along the camber line
         if self._cosine_cluster:
             theta = np.linspace(-np.pi, np.pi, num_camber_points)
             x_c = 0.5*(1-np.cos(theta))*(te[0]-le[0])
         else:
-            x_c = np.linspace(le[0], te[0], num_camber_points)
+            x_c = np.linspace(le[0]+le_offset, te[0], num_camber_points)
 
 
         # Get initial estimate for the camber line and thickness distributions
@@ -296,6 +297,16 @@ class Airfoil:
             # Calculate new camber line points
             x_c_new = 0.5*(x_t+x_b)
             y_c_new = 0.5*(y_t+y_b)
+
+            # Plot new and old estimate
+            if False:
+                plt.figure()
+                plt.plot(self._raw_outline[:,0], self._raw_outline[:,1], 'b-', label='Outline Data')
+                plt.plot(x_c, y_c, 'r--', label='Old Camber Line Estimate')
+                plt.plot(x_c_new, y_c_new, 'g--', label='New Camber Line Estimate')
+                plt.legend()
+                plt.gca().set_aspect('equal', adjustable='box')
+                plt.show()
 
             # Approximate error
             x_diff = x_c_new-x_c
@@ -459,7 +470,7 @@ class Airfoil:
             # Plot
             if plot:
                 plt.figure()
-                s_space = np.linspace(0.0, 1.0, 1000)
+                s_space = np.linspace(0.0, 1.0, 10000)
                 plt.plot(self._x_outline(s_space), self._y_outline(s_space), 'b')
                 plt.plot(xc, yc, 'or')
                 plt.plot(x0, y0, 'bx')
