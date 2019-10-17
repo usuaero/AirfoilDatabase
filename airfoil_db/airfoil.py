@@ -29,6 +29,7 @@ class Flap:
         else:
             def_x = 0.0
         self.x = input_dict.get("x", def_x) # Default behavior is no flap
+        self.y = input_dict.get("y", 0.0)
         self.is_sealed = input_dict.get("is_sealed", True)
 
 
@@ -761,10 +762,29 @@ class Airfoil:
                 Y = self._y_outline(s)
                 outline_points =  np.concatenate([X[:,np.newaxis], Y[:,np.newaxis]], axis=1)
 
-            # TODO: Implement flap equations
+            # Trailing flap deflection
             else:
-                pass
+                
+                # Linear flap
+                if self._trailing_flap.type == "linear":
 
+                    # Get undeformed camber points
+                    if cluster:
+                        theta_c = np.linspace(0.0, np.pi, N//2)
+                        x_c = 0.5*(1-np.cos*(theta_c))
+                    else:
+                        x_c = np.linspace(0.0, 1.0, N//2)
+
+                    y_c = self._camber_line(x_c)
+                    
+                    # Calculate deflected camber line Eqs. (8-10) in "Geometry and Aerodynamic Performance of Parabolic..." by Hunsaker, et al. 2018
+                    x_f = self._trailing_flap.x
+                    y_f = self._trailing_flap.y
+                    r = np.sqrt((y_c-y_f)*(y_c-y_f)+(x_c-x_f)*(x_c-x_f))
+                    psi = np.arctan((y_c-y_f)/(x_c-x_f))
+                    x_c = np.where(x_c<x_f, x_c, x_f+r*np.cos(trailing_flap_deflection-psi))
+                    y_c = np.where(x_c<x_f, y_c, y_f-r*np.sin(trailing_flap_deflection-psi))
+                    
             # Save to file
             if export is not None:
                 np.savetxt(export, outline_points, fmt='%10.5f')
