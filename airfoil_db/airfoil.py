@@ -30,7 +30,6 @@ class Flap:
             def_x = 0.0
         self.x = input_dict.get("x", def_x) # Default behavior is no flap
         self.y = input_dict.get("y", 0.0)
-        self.is_sealed = input_dict.get("is_sealed", True)
 
 
 class Airfoil:
@@ -756,11 +755,8 @@ class Airfoil:
                     s = np.linspace(0.0, 1.0, N)
 
                 # Get outline
-                if not top_first:
-                    s = s[::-1]
                 X = self._x_outline(s)
                 Y = self._y_outline(s)
-                outline_points =  np.concatenate([X[:,np.newaxis], Y[:,np.newaxis]], axis=1)
 
             # Trailing flap deflection
             else:
@@ -771,7 +767,7 @@ class Airfoil:
                     # Get undeformed camber points
                     if cluster:
                         theta_c = np.linspace(0.0, np.pi, N//2)
-                        x_c = 0.5*(1-np.cos*(theta_c))
+                        x_c = 0.5*(1-np.cos(theta_c))
                     else:
                         x_c = np.linspace(0.0, 1.0, N//2)
 
@@ -782,8 +778,30 @@ class Airfoil:
                     y_f = self._trailing_flap.y
                     r = np.sqrt((y_c-y_f)*(y_c-y_f)+(x_c-x_f)*(x_c-x_f))
                     psi = np.arctan((y_c-y_f)/(x_c-x_f))
-                    x_c = np.where(x_c<x_f, x_c, x_f+r*np.cos(trailing_flap_deflection-psi))
-                    y_c = np.where(x_c<x_f, y_c, y_f-r*np.sin(trailing_flap_deflection-psi))
+                    x_c = np.where(x_c<x_f, x_c, x_f+r*np.cos(np.radians(trailing_flap_deflection)-psi))
+                    y_c = np.where(x_c<x_f, y_c, y_f-r*np.sin(np.radians(trailing_flap_deflection)-psi))
+
+                    # Calculate outline
+                    dyc_dx = np.gradient(y_c, x_c, edge_order=2)
+                    t = self._thickness(x_c)
+
+                    # Outline points
+                    X_t = x_c-t*np.sin(np.arctan(dyc_dx))
+                    Y_t = y_c+t*np.cos(np.arctan(dyc_dx))
+                    X_b = x_c+t*np.sin(np.arctan(dyc_dx))
+                    Y_b = y_c-t*np.cos(np.arctan(dyc_dx))
+                    X = np.concatenate([X_t[::-1], X_b])
+                    Y = np.concatenate([Y_t[::-1], Y_b])
+
+
+                # Parabolic flap
+                else:
+                    pass
+
+            # Concatenate x and y
+            outline_points = np.concatenate([X[:,np.newaxis], Y[:,np.newaxis]], axis=1)
+            if not top_first:
+                outline_points = outline_points[::-1,:]
                     
             # Save to file
             if export is not None:
@@ -857,7 +875,7 @@ class Airfoil:
             Moment coefficient. Dimensions same as CL.
         """
         N = kwargs.get("N", 200)
-        max_iter = kwargs.get("max_iter", 200)
+        max_iter = kwargs.get("max_iter", 50)
 
         # Get states
         # Angle of attack
@@ -902,7 +920,7 @@ class Airfoil:
             
             # Export geometry
             geom_file = os.path.abspath("xfoil_geom_{0}.geom".format(delta_ft))
-            self.get_outline_points(trailing_flap_deflection=delta_ft, export=geom_file)
+            self.get_outline_points(N=N, trailing_flap_deflection=delta_ft, export=geom_file)
 
             # Initialize xfoil execution
             with sp.Popen(['xfoil'], stdin=sp.PIPE, stdout=sp.PIPE) as xfoil_process:
@@ -925,16 +943,12 @@ class Airfoil:
                     for M in Machs:
 
                         # Polar accumulation file
-                        pacc_file = "xfoil_results_tf_{0}_M_{1}_Re_{2}.pacc".format(delta_ft, M, Re)
+                        file_id = str(np.random.randint(0, 10000))
+                        pacc_file = "xfoil_results_{0}.pacc".format(file_id)
                         pacc_files.append(pacc_file)
 
                         # Set up commands
-                        commands += ['PPAR',
-                                    'N',
-                                    '{0}'.format(N),
-                                    '',
-                                    '',
-                                    'OPER',
+                        commands += ['OPER',
                                     'RE',
                                     str(Re),
                                     'MACH',
@@ -956,6 +970,7 @@ class Airfoil:
                 # Finish commands
                 commands += ['',
                              'QUIT']
+
 
                 # Run Xfoil
                 xfoil_input = '\r'.join(commands).encode('utf-8')
