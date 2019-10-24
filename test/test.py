@@ -25,12 +25,12 @@ plt.plot(outline[:,0], outline[:,1])
 plt.gca().set_aspect('equal', adjustable='box')
 plt.show()
 
-alphas = [i-5 for i in range(11)]
-Reynolds = [10000.0, 50000.0, 100000.0]
-Machs = [0.0, 0.3, 0.5]
-dfs = [30.0]
-
-CL, CD, Cm = airfoil.run_xfoil(alpha=alphas, Rey=Reynolds, Mach=Machs, trailing_flap_deflection=dfs)
-print(CL)
-print(CD)
-print(Cm)
+#alphas = [i-5 for i in range(11)]
+#Reynolds = [10000.0, 50000.0, 100000.0]
+#Machs = [0.0, 0.3, 0.5]
+#dfs = [30.0]
+#
+#CL, CD, Cm = airfoil.run_xfoil(alpha=alphas, Rey=Reynolds, Mach=Machs, trailing_flap_deflection=dfs)
+#print(CL)
+#print(CD)
+#print(Cm)
