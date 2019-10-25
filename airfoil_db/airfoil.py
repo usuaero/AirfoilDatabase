@@ -773,6 +773,9 @@ class Airfoil:
                         x_c = np.linspace(0.0, 1.0, N//2)
 
                     y_c = self._camber_line(x_c)
+
+                    # Get thickness before we deform the camber
+                    t = self._thickness(x_c)
                     
                     # Calculate deflected camber line Eqs. (8-10) in "Geometry and Aerodynamic Performance of Parabolic..." by Hunsaker, et al. 2018
                     x_f = self._trailing_flap.x
@@ -784,7 +787,6 @@ class Airfoil:
 
                     # Calculate outline
                     dyc_dx = np.gradient(y_c, x_c, edge_order=2)
-                    t = self._thickness(x_c)
 
                     # Outline points
                     X_t = x_c-t*np.sin(np.arctan(dyc_dx))
@@ -793,32 +795,33 @@ class Airfoil:
                     Y_b = y_c-t*np.cos(np.arctan(dyc_dx))
 
                     # Find the point on the surface where the hinge breaks
-                    x_h_t, y_h_t, r_t = self._get_closest_point_on_surface(x_f, y_f, "top")
-                    x_h_b, y_h_b, r_b = self._get_closest_point_on_surface(x_f, y_f, "bottom")
+                    _, y_h_t, r_t = self._get_closest_point_on_surface(x_f, y_f, "top")
+                    _, y_h_b, r_b = self._get_closest_point_on_surface(x_f, y_f, "bottom")
 
-                    # Deal with top surfaces
-                    trim_top = (trailing_flap_deflection > 0 and y_f > y_h_t) or (trailing_flap_deflection < 0 and y_f < y_h_t)
-                    if trim_top:
-                        print("Trimming top...")
-                        X_t, Y_t = self._trim_surface(X_t, Y_t, x_f, y_f, r_t)
-                    else:
-                        print("Filling top...")
+                    # Trim overlapping points off of both surfaces
+                    X_b, Y_b = self._trim_surface(X_b, Y_b, "forward")
+                    X_t, Y_t = self._trim_surface(X_t, Y_t, "forward")
+
+                    # Check if we need to fill anything in
+                    fill_top = (trailing_flap_deflection > 0 and y_f < y_h_t) or (trailing_flap_deflection < 0 and y_f > y_h_t)
+                    if fill_top:
                         X_t, Y_t = self._fill_surface(X_t, Y_t, x_f, y_f, r_t)
 
-                    # Deal with bottom surfaces
-                    trim_bot = (trailing_flap_deflection > 0 and y_f > y_h_b) or (trailing_flap_deflection < 0 and y_f < y_h_b)
-                    if trim_bot:
-                        print(X_b)
-                        print("Trimming bottom...")
-                        X_b, Y_b = self._trim_surface(X_b, Y_b, x_f, y_f, r_b)
-                        print(X_b)
-                    else:
-                        print("Filling bottom...")
+                    fill_bot = (trailing_flap_deflection > 0 and y_f < y_h_b) or (trailing_flap_deflection < 0 and y_f > y_h_b)
+                    if fill_bot:
                         X_b, Y_b = self._fill_surface(X_b, Y_b, x_f, y_f, r_b)
 
                     # Concatenate top and bottom points
                     X = np.concatenate([X_t[::-1], X_b])
                     Y = np.concatenate([Y_t[::-1], Y_b])
+
+                    # Plot result
+                    if True:
+                        plt.figure()
+                        plt.plot(X, Y)
+                        plt.plot(x_f, y_f, 'rx')
+                        plt.gca().set_aspect('equal', adjustable='box')
+                        plt.show()
 
                 # Parabolic flap
                 else:
@@ -839,16 +842,29 @@ class Airfoil:
             raise RuntimeError("The geometry has not been defined for airfoil {0}.".format(self.name))
 
 
-    def _trim_surface(self, X, Y, x_h, y_h, r):
-        # Trims any points that lie within the circle defined by x_h, y_h, and r
+    def _trim_surface(self, X, Y, direction):
+        # Trims any points that reverse direction in x
 
         # Loop through points
         trim_indices = []
-        for i in range(X.shape[0]):
+        last_x_before_break = None
+
+        # Determine direction
+        if direction == "forward":
+            indices = range(X.shape[0])
+        
+        for i in indices:
             
-            # Check the distance
-            dist = self._get_cart_dist(X[i], Y[i], x_h, y_h)
-            if dist < r:
+            # Skip first point
+            if i == 0:
+                continue
+
+            # Check if we've passed the break point and store break point
+            if last_x_before_break is None and direction == "forward" and X[i] < X[i-1]:
+                last_x_before_break = X[i-1]
+
+            # Check if we've now gone backwards
+            if last_x_before_break is not None and X[i] < last_x_before_break:
                 trim_indices.append(i)
 
         return np.delete(X, trim_indices), np.delete(Y, trim_indices)
@@ -857,7 +873,27 @@ class Airfoil:
     def _fill_surface(self, X, Y, x_h, y_h, r):
         # Fills in points along the arc defined by x_h, y_h, and r
 
-        return X, Y
+        # Find the two points we need to fill in between
+        for i in range(X.shape[0]):
+            if X[i] > x_h:
+                fill_start = i-1
+                fill_stop = i
+                break
+
+        # No filling needed, apparently...
+        else:
+            return X, Y
+
+        # Get angles from the hinge point to the start and stop points
+        theta0 = m.atan2(Y[fill_start]-y_h, X[fill_start]-x_h)
+        theta1 = m.atan2(Y[fill_stop]-y_h, X[fill_stop]-x_h)
+
+        # Find fill in points
+        theta_fill = (theta1+theta0)/2.0
+        x_fill = x_h+r*np.cos(theta_fill)
+        y_fill = y_h+r*np.sin(theta_fill)
+
+        return np.insert(X, fill_stop, x_fill), np.insert(Y, fill_stop, y_fill)
 
 
     def _get_closest_point_on_surface(self, x, y, surface):

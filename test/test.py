@@ -19,11 +19,7 @@ airfoil_input = {
 
 airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
 
-outline = airfoil.get_outline_points(500, trailing_flap_deflection=30.0, export="geom_points.txt")
-plt.figure()
-plt.plot(outline[:,0], outline[:,1])
-plt.gca().set_aspect('equal', adjustable='box')
-plt.show()
+airfoil.get_outline_points(500, trailing_flap_deflection=-30.0, export="geom_points.txt")
 
 #alphas = [i-5 for i in range(11)]
 #Reynolds = [10000.0, 50000.0, 100000.0]
