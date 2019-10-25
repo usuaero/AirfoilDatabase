@@ -1,6 +1,7 @@
 """A class defining an airfoil."""
 
 import numpy as np
+import math as m
 import matplotlib.pyplot as plt
 import scipy.interpolate as interp
 import scipy.signal as sig
@@ -254,7 +255,7 @@ class Airfoil:
         y_b = np.interp(x_c, self._raw_outline[le_ind:,0], self._raw_outline[le_ind:, 1])
         y_c = 0.5*(y_t+y_b)
 
-        x_space = np.linspace(0.0, 1.0, 10000)
+        x_space = np.linspace(0.0, 1.0, 1000)
 
         # Show
         if self._verbose:
@@ -790,9 +791,34 @@ class Airfoil:
                     Y_t = y_c+t*np.cos(np.arctan(dyc_dx))
                     X_b = x_c+t*np.sin(np.arctan(dyc_dx))
                     Y_b = y_c-t*np.cos(np.arctan(dyc_dx))
+
+                    # Find the point on the surface where the hinge breaks
+                    x_h_t, y_h_t, r_t = self._get_closest_point_on_surface(x_f, y_f, "top")
+                    x_h_b, y_h_b, r_b = self._get_closest_point_on_surface(x_f, y_f, "bottom")
+
+                    # Deal with top surfaces
+                    trim_top = (trailing_flap_deflection > 0 and y_f > y_h_t) or (trailing_flap_deflection < 0 and y_f < y_h_t)
+                    if trim_top:
+                        print("Trimming top...")
+                        X_t, Y_t = self._trim_surface(X_t, Y_t, x_f, y_f, r_t)
+                    else:
+                        print("Filling top...")
+                        X_t, Y_t = self._fill_surface(X_t, Y_t, x_f, y_f, r_t)
+
+                    # Deal with bottom surfaces
+                    trim_bot = (trailing_flap_deflection > 0 and y_f > y_h_b) or (trailing_flap_deflection < 0 and y_f < y_h_b)
+                    if trim_bot:
+                        print(X_b)
+                        print("Trimming bottom...")
+                        X_b, Y_b = self._trim_surface(X_b, Y_b, x_f, y_f, r_b)
+                        print(X_b)
+                    else:
+                        print("Filling bottom...")
+                        X_b, Y_b = self._fill_surface(X_b, Y_b, x_f, y_f, r_b)
+
+                    # Concatenate top and bottom points
                     X = np.concatenate([X_t[::-1], X_b])
                     Y = np.concatenate([Y_t[::-1], Y_b])
-
 
                 # Parabolic flap
                 else:
@@ -812,6 +838,74 @@ class Airfoil:
         else:
             raise RuntimeError("The geometry has not been defined for airfoil {0}.".format(self.name))
 
+
+    def _trim_surface(self, X, Y, x_h, y_h, r):
+        # Trims any points that lie within the circle defined by x_h, y_h, and r
+
+        # Loop through points
+        trim_indices = []
+        for i in range(X.shape[0]):
+            
+            # Check the distance
+            dist = self._get_cart_dist(X[i], Y[i], x_h, y_h)
+            if dist < r:
+                trim_indices.append(i)
+
+        return np.delete(X, trim_indices), np.delete(Y, trim_indices)
+
+
+    def _fill_surface(self, X, Y, x_h, y_h, r):
+        # Fills in points along the arc defined by x_h, y_h, and r
+
+        return X, Y
+
+
+    def _get_closest_point_on_surface(self, x, y, surface):
+        # Finds the point on the surface of the airfoil which is closest to the given point using Golden section search
+        # Returns the coordinates and the radius from the given point
+
+        # Decide where to start in s
+        if surface == "top":
+            s0 = 0.0
+            s3 = 0.5
+        else:
+            s0 = 0.5
+            s3 = 1.0
+
+        # Get Golden ratio
+        R = 2.0/(1.0+m.sqrt(5.0))
+
+        # Loop until interval converges
+        while abs(s0-s3)>1e-10:
+            
+            # Get interior points
+            diff = s3-s0
+            s1 = s3-diff*R
+            s2 = s0+diff*R
+
+            # Calculate points
+            x1 = self._x_outline(s1)
+            y1 = self._y_outline(s1)
+            x2 = self._x_outline(s2)
+            y2 = self._y_outline(s2)
+    
+            # Calculate distances
+            d1 = self._get_cart_dist(x, y, x1, y1)
+            d2 = self._get_cart_dist(x, y, x2, y2)
+
+            # Check
+            if d1 < d2:
+                s3 = s2
+            else:
+                s0 = s1
+
+        return x1, y1, d1
+
+
+    def _get_cart_dist(self, x0, y0, x1, y1):
+        x_diff = x0-x1
+        y_diff = y0-y1
+        return m.sqrt(x_diff*x_diff+y_diff*y_diff)
 
 
     def generate_database(self, degrees_of_freedom):
