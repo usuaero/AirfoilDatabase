@@ -17,9 +17,9 @@ airfoil_input = {
     }
 }
 
-airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True)
+airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
 
-outline = airfoil.get_outline_points(200, trailing_flap_deflection=30.0, export="test.txt")
+outline = airfoil.get_outline_points(500, trailing_flap_deflection=30.0, export="geom_points.txt")
 plt.figure()
 plt.plot(outline[:,0], outline[:,1])
 plt.gca().set_aspect('equal', adjustable='box')
