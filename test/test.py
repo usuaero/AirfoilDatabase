@@ -19,14 +19,27 @@ airfoil_input = {
 
 airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
 
-airfoil.get_outline_points(500, trailing_flap_deflection=-30.0, export="geom_points.txt")
+degrees_of_freedom = {
+    "alpha" : {
+        "range" : [-5.0, 5.0],
+        "steps" : 11,
+        "index" : 0
+    },
+    "Rey" : {
+        "range" : [100000, 500000],
+        "steps" : 3,
+        "index" : 1
+    },
+    "Mach" : {
+        "range" : [0.0, 0.5],
+        "steps" : 3,
+        "index" : 2
+    },
+    "trailing_flap_deflection" : {
+        "range" : [-20.0, 20.0],
+        "steps" : 5,
+        "index" : 3
+    }
+}
 
-#alphas = [i-5 for i in range(11)]
-#Reynolds = [10000.0, 50000.0, 100000.0]
-#Machs = [0.0, 0.3, 0.5]
-#dfs = [30.0]
-#
-#CL, CD, Cm = airfoil.run_xfoil(alpha=alphas, Rey=Reynolds, Mach=Machs, trailing_flap_deflection=dfs)
-#print(CL)
-#print(CD)
-#print(Cm)
+airfoil.generate_database(degrees_of_freedom=degrees_of_freedom, max_iter=50)
