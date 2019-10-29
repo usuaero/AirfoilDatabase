@@ -9,6 +9,7 @@ import subprocess as sp
 import json
 import copy
 import os
+import operator
 
 class Flap:
     """A class defining a flap.
@@ -58,6 +59,9 @@ class Airfoil:
 
         # Store undeformed outlines
         self._initialize_geometry()
+
+        # Specify allowable database DOFs
+        self._allowable_dofs = ["alpha", "Rey", "Mach", "trailing_flap"]
 
 
     def set_verbosity(self, verbosity):
@@ -956,7 +960,7 @@ class Airfoil:
                 "alpha"
                 "Rey"
                 "Mach"
-                "trailing_flap_deflection"
+                "trailing_flap"
 
             Each key should be one of these degrees of freedom. The value should then be a dictionary 
             describing how that DOF should be perturbed. The following keys must be specified:
@@ -975,7 +979,7 @@ class Airfoil:
                 "angle_of_attack" : 0.0
                 "reynolds_number" : 100000.0
                 "mach_number" : 0.0
-                "trailing_flap_deflection" : 0.0
+                "trailing_flap" : 0.0
 
             If "steps" is 1, this variable will be constant for all Xfoil runs and will not be considered as
             an independent variable for the purpose of database generation. In this case, "index" should not be
@@ -988,12 +992,11 @@ class Airfoil:
             Maximum iterations for Xfoil. Defaults to 5000.
         """
 
-        # Setup lists of independent vars
-        allowable_dofs = ["alpha", "Rey", "Mach", "trailing_flap_deflection"]
+        # Set up lists of independent vars
         xfoil_args = {}
         self._dof_db_cols = {}
         for dof, params in kwargs.get("degrees_of_freedom", {}).items():
-            if dof not in allowable_dofs:
+            if dof not in self._allowable_dofs:
                 raise IOError("{0} is not an allowable DOF.".format(dof))
             vals, column_index = self._setup_ind_var(params)
             xfoil_args[dof] = vals
@@ -1007,17 +1010,51 @@ class Airfoil:
         CL, CD, Cm = self.run_xfoil(**xfoil_args, N=N, max_iter=max_iter)
 
         # Determine the rows and cols in the database; each independent var and coefficient is a column to be iterpolated using scipy.interpolate.griddata
-        num_cols = 3
+        num_dofs = len(list(self._dof_db_cols.keys()))
+        num_cols = 3+num_dofs
         num_rows = CL.size-np.count_nonzero(np.isnan(CL))
-
-        # Transpose the coefficient arrays to match the user's desired column order
-        transpose_axes = ()
-        CL = CL.transpose(transpose_axes)
-        CD = CD.transpose(transpose_axes)
-        Cm = Cm.transpose(transpose_axes)
 
         # Arrange into 2D database
         self._data = np.zeros((num_rows, num_cols))
+        database_row = 0
+
+        for i, alpha in enumerate(xfoil_args["alpha"]):
+            for j, Re in enumerate(xfoil_args["Rey"]):
+                for k, M in enumerate(xfoil_args["Mach"]):
+                    for l, df in enumerate(xfoil_args["trailing_flap"]):
+
+                        # Check for nan
+                        if np.isnan(CL[i,j,k,l]):
+                            continue
+
+                        # Append independent vars to database
+                        try: # The column may not need to exist in the database...
+                            self._data[database_row,self._dof_db_cols["alpha"]] = alpha
+                        except KeyError:
+                            pass
+                        try:
+                            self._data[database_row,self._dof_db_cols["Rey"]] = Re
+                        except KeyError:
+                            pass
+                        try:
+                            self._data[database_row,self._dof_db_cols["Mach"]] = M
+                        except KeyError:
+                            pass
+                        try:
+                            self._data[database_row,self._dof_db_cols["trailing_flap"]] = df
+                        except KeyError:
+                            pass
+                        
+                        # Append coefficients
+                        self._data[database_row,num_dofs] = CL[i,j,k,l]
+                        self._data[database_row,num_dofs+1] = CD[i,j,k,l]
+                        self._data[database_row,num_dofs+2] = Cm[i,j,k,l]
+
+                        database_row += 1
+
+        # Sort by columns
+        dtype = ",".join(['i8' for i in range(num_cols)])
+        self._data.view(dtype=dtype).sort(order=['f{0}'.format(i) for i in range(num_dofs)], axis=0)
 
 
     def _setup_ind_var(self, input_dict):
@@ -1044,11 +1081,53 @@ class Airfoil:
         filename = kwargs.get("filename")
 
         # Check the database is there
-        if self._data:
+        if hasattr(self, "_data"):
+
+            # Create header
+            header = []
+            for dof in sorted(self._dof_db_cols.items(), key=operator.itemgetter(1)):
+                header.append("{:>20s}".format(dof[0]))
+
+            header.append("{:>20s}".format('CL'))
+            header.append("{:>20s}".format('CD'))
+            header.append("{:>20s}".format('Cm'))
+            header = " ".join(header)
+
+            # Export
             with open(filename, 'w') as db_file:
-                pass
+                np.savetxt(db_file, self._data, '%20.10E', header=header)
         else:
             raise RuntimeError("No database has been generated for airfoil {0}. Please create a database before exporting.".format(self.name))
+
+
+    def import_database(self, **kwargs):
+        """Imports the specified database.
+
+        Parameters
+        ----------
+        filename : str
+            File to import the database from
+        """
+
+        filename = kwargs.get("filename")
+
+        # Load data from file
+        with open(filename, 'r') as db_file:
+            self._data = np.loadtxt(db_file)
+
+        # Determine the column indices
+        with open(filename, 'r') as db_file:
+            header = db_file.readline().strip('#')
+        self._dof_db_cols = {}
+        for i, col_name in enumerate(header.split()):
+
+            # Check it's appropriate
+            if col_name not in self._allowable_dofs:
+                raise IOError("Column {0} in {1} is not an allowable degree of freedom specification.".format(col_name, filename))
+
+            # Add
+            self._dof_db_cols[col_name] = i
+
 
     def run_xfoil(self, **kwargs):
         """Calls Xfoil and extracts the aerodynamic coefficients at the given state.
@@ -1064,7 +1143,7 @@ class Airfoil:
         Mach : float or list of float
             Mach number(s) to calculate the coefficients at. Defaults to 0.0.
 
-        trailing_flap_deflection : float or list of float
+        trailing_flap : float or list of float
             Flap deflection(s) to calculate the coefficients at. Defaults to 0.0.
 
         N : int, optional
@@ -1107,7 +1186,7 @@ class Airfoil:
         third_dim = len(Machs)
 
         # Flap deflections
-        delta_fts = kwargs.get("trailing_flap_deflection", [0.0])
+        delta_fts = kwargs.get("trailing_flap", [0.0])
         if isinstance(delta_fts, float):
             delta_fts = [delta_fts]
         fourth_dim = len(delta_fts)
@@ -1202,7 +1281,10 @@ class Airfoil:
             for filename in pacc_files:
 
                 # Read in file
-                alpha_i, CL_i, CD_i, Cm_i, Re_i, M_i = self.read_pacc_file(filename)
+                try:
+                    alpha_i, CL_i, CD_i, Cm_i, Re_i, M_i = self.read_pacc_file(filename)
+                except FileNotFoundError:
+                    continue
 
                 # Determine the Reynolds and Mach indices
                 j = Reys.index(Re_i)

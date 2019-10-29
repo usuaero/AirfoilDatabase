@@ -22,24 +22,25 @@ airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
 degrees_of_freedom = {
     "alpha" : {
         "range" : [-5.0, 5.0],
-        "steps" : 11,
-        "index" : 0
+        "steps" : 5,
+        "index" : 3
     },
     "Rey" : {
         "range" : [100000, 500000],
+        "steps" : 2,
+        "index" : 0
+    },
+    "Mach" : {
+        "range" : [0.0, 0.4],
         "steps" : 3,
         "index" : 1
     },
-    "Mach" : {
-        "range" : [0.0, 0.5],
-        "steps" : 3,
-        "index" : 2
-    },
-    "trailing_flap_deflection" : {
+    "trailing_flap" : {
         "range" : [-20.0, 20.0],
-        "steps" : 5,
-        "index" : 3
+        "steps" : 4,
+        "index" : 2
     }
 }
 
 airfoil.generate_database(degrees_of_freedom=degrees_of_freedom, max_iter=50)
+airfoil.export_database(filename="database.txt")
