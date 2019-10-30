@@ -60,8 +60,14 @@ class Airfoil:
         # Store undeformed outlines
         self._initialize_geometry()
 
-        # Specify allowable database DOFs
+        # Specify database DOF parameters
         self._allowable_dofs = ["alpha", "Rey", "Mach", "trailing_flap"]
+        self._dof_defaults = {
+            "alpha" : 0.0,
+            "Rey" : 100000.0,
+            "Mach" : 0.0,
+            "trailing_flap" : 0.0
+        }
 
 
     def set_verbosity(self, verbosity):
@@ -570,26 +576,51 @@ class Airfoil:
             print("Max thickness error: {0:.5f}%".format(max_thickness_error*100))
 
 
-    def get_CL(self, inputs):
+    def get_CL(self, **kwargs):
         """Returns the coefficient of lift.
 
         Parameters
         ----------
-        inputs : ndarray
-            Parameters which can affect the airfoil coefficients. The first
-            three are always alpha, Reynolds number, and Mach number. Fourth 
-            is flap efficiency and fifth is flap deflection.
+        alpha : float, optional
+            Angle of attack in degrees. Defaults to 0.0.
+
+        Rey : float, optional
+            Reynolds number. Defaults to 100000.
+
+        Mach : float, optional
+            Mach number. Defaults to 0.
+
+        trailing_flap : float, optional
+            Trailing flap deflection in degrees. Defaults to 0.
+
+        trailing_flap_efficiency : float, optional
+            Trailing flap efficiency. Defaults to 1.0.
 
         Returns
         -------
         float
             Lift coefficient
         """
+        
+        # Linearized model
         if self._type == "linear":
-            CL = self._CLa*(inputs[0]-self._aL0+inputs[3]*inputs[4])
+
+            # Get params
+            alpha = kwargs.get("alpha", 0.0)
+            trailing_flap = kwargs.get("trailing_flap", 0.0)
+            trailing_flap_efficiency = kwargs.get("trailing_flap_efficiency", 1.0)
+            aL0 = self.get_aL0()
+
+            # Calculate lift coefficient
+            CL = self._CLa*(alpha-aL0+trailing_flap*trailing_flap_efficiency)
             if CL > self._CL_max or CL < -self._CL_max:
                 CL = np.sign(CL)*self._CL_max
-            return CL
+
+        # Generated/imported database
+        elif self._type == "database":
+            CL = self._get_database_data(0, **kwargs)
+
+        return CL
 
 
     def get_CD(self, inputs):
@@ -633,6 +664,20 @@ class Airfoil:
         """
         if self._type == "linear":
             return self._Cma*inputs[0]+self._CmL0+inputs[3]*inputs[4]
+
+
+    def _get_database_data(self, data_index, **kwargs):
+        # Returns an interpolated data point from the database.
+        # data_index: 0 = CL, 1 = CD, 2 = Cm
+
+        # Get params
+        param_vals = np.zeros((1,self._num_dofs))
+        for i, dof in enumerate(self._dof_db_order):
+            param_vals[i] = kwargs.get(dof, self._dof_defaults[dof])
+        
+        # Interpolate
+        return interp.griddata(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+data_index], param_vals).item()
+
 
 
     def get_aL0(self, inputs):
@@ -976,9 +1021,9 @@ class Airfoil:
             
             If not specified, the above degrees of freedom default to the following:
 
-                "angle_of_attack" : 0.0
-                "reynolds_number" : 100000.0
-                "mach_number" : 0.0
+                "alpha" : 0.0
+                "Rey" : 100000.0
+                "Mach" : 0.0
                 "trailing_flap" : 0.0
 
             If "steps" is 1, this variable will be constant for all Xfoil runs and will not be considered as
@@ -1010,51 +1055,39 @@ class Airfoil:
         CL, CD, Cm = self.run_xfoil(**xfoil_args, N=N, max_iter=max_iter)
 
         # Determine the rows and cols in the database; each independent var and coefficient is a column to be iterpolated using scipy.interpolate.griddata
-        num_dofs = len(list(self._dof_db_cols.keys()))
-        num_cols = 3+num_dofs
+        self._num_dofs = len(list(self._dof_db_cols.keys()))
+        num_cols = 3+self._num_dofs
         num_rows = CL.size-np.count_nonzero(np.isnan(CL))
+        dof_sorted = sorted(self._dof_db_cols.items(), key=operator.itemgetter(1))
+        self._dof_db_order = [x[0] for x in dof_sorted]
 
         # Arrange into 2D database
         self._data = np.zeros((num_rows, num_cols))
         database_row = 0
 
         for i, alpha in enumerate(xfoil_args["alpha"]):
-            for j, Re in enumerate(xfoil_args["Rey"]):
-                for k, M in enumerate(xfoil_args["Mach"]):
-                    for l, df in enumerate(xfoil_args["trailing_flap"]):
+            for j, Rey in enumerate(xfoil_args["Rey"]):
+                for k, Mach in enumerate(xfoil_args["Mach"]):
+                    for l, trailing_flap in enumerate(xfoil_args["trailing_flap"]):
 
                         # Check for nan
                         if np.isnan(CL[i,j,k,l]):
                             continue
 
                         # Append independent vars to database
-                        try: # The column may not need to exist in the database...
-                            self._data[database_row,self._dof_db_cols["alpha"]] = alpha
-                        except KeyError:
-                            pass
-                        try:
-                            self._data[database_row,self._dof_db_cols["Rey"]] = Re
-                        except KeyError:
-                            pass
-                        try:
-                            self._data[database_row,self._dof_db_cols["Mach"]] = M
-                        except KeyError:
-                            pass
-                        try:
-                            self._data[database_row,self._dof_db_cols["trailing_flap"]] = df
-                        except KeyError:
-                            pass
+                        for m, dof in enumerate(self._dof_db_order):
+                            self._data[database_row,m] = locals().get(dof)
                         
                         # Append coefficients
-                        self._data[database_row,num_dofs] = CL[i,j,k,l]
-                        self._data[database_row,num_dofs+1] = CD[i,j,k,l]
-                        self._data[database_row,num_dofs+2] = Cm[i,j,k,l]
+                        self._data[database_row,self._num_dofs] = CL[i,j,k,l]
+                        self._data[database_row,self._num_dofs+1] = CD[i,j,k,l]
+                        self._data[database_row,self._num_dofs+2] = Cm[i,j,k,l]
 
                         database_row += 1
 
         # Sort by columns
         dtype = ",".join(['i8' for i in range(num_cols)])
-        self._data.view(dtype=dtype).sort(order=['f{0}'.format(i) for i in range(num_dofs)], axis=0)
+        self._data.view(dtype=dtype).sort(order=['f{0}'.format(i) for i in range(self._num_dofs)], axis=0)
 
 
     def _setup_ind_var(self, input_dict):
@@ -1119,6 +1152,7 @@ class Airfoil:
         with open(filename, 'r') as db_file:
             header = db_file.readline().strip('#')
         self._dof_db_cols = {}
+        self._num_dofs = 0
         for i, col_name in enumerate(header.split()):
 
             # Check it's appropriate
@@ -1127,6 +1161,11 @@ class Airfoil:
 
             # Add
             self._dof_db_cols[col_name] = i
+            self._num_dofs += 1
+
+        # Figure out the order of the columns in the database
+        dof_sorted = sorted(self._dof_db_cols.items(), key=operator.itemgetter(1))
+        self._dof_db_order = [x[0] for x in dof_sorted]
 
 
     def run_xfoil(self, **kwargs):
@@ -1168,25 +1207,25 @@ class Airfoil:
 
         # Get states
         # Angle of attack
-        alphas = kwargs.get("alpha", [0.0])
+        alphas = kwargs.get("alpha", [self._dof_defaults["alpha"]])
         if isinstance(alphas, float):
             alphas = [alphas]
         first_dim = len(alphas)
     
         # Reynolds number
-        Reys = kwargs.get("Rey", [100000.0])
+        Reys = kwargs.get("Rey", [self._dof_defaults["Rey"]])
         if isinstance(Reys, float):
             Reys = [Reys]
         second_dim = len(Reys)
 
         # Mach number
-        Machs = kwargs.get("Mach", [0.0])
+        Machs = kwargs.get("Mach", [self._dof_defaults["Mach"]])
         if isinstance(Machs, float):
             Machs = [Machs]
         third_dim = len(Machs)
 
         # Flap deflections
-        delta_fts = kwargs.get("trailing_flap", [0.0])
+        delta_fts = kwargs.get("trailing_flap", [self._dof_defaults["trailing_flap"]])
         if isinstance(delta_fts, float):
             delta_fts = [delta_fts]
         fourth_dim = len(delta_fts)
@@ -1287,12 +1326,17 @@ class Airfoil:
                     continue
 
                 # Determine the Reynolds and Mach indices
-                j = Reys.index(Re_i)
-                k = Machs.index(M_i)
+                j = min(range(len(Reys)), key=lambda i: abs(Reys[i]-Re_i))
+
+                k = min(range(len(Machs)), key=lambda i: abs(Machs[i]-M_i))
 
                 # Loop through alphas
+                i_true = 0
                 for i_iter, alpha in enumerate(alpha_i):
-                    i_true = alphas.index(alpha) # Line up with our original independent alpha, as Xfoil does not output a non-converged result
+
+                    # Line up with our original independent alpha, as Xfoil does not output a non-converged result
+                    i_true = min(range(len(alphas)), key=lambda i: abs(alphas[i]-alpha))
+
                     CL[i_true,j,k,l] = CL_i[i_iter]
                     CD[i_true,j,k,l] = CD_i[i_iter]
                     Cm[i_true,j,k,l] = Cm_i[i_iter]
