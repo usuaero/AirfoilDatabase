@@ -21,8 +21,8 @@ airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
 
 degrees_of_freedom = {
     "alpha" : {
-        "range" : [-5.0, 5.0],
-        "steps" : 10,
+        "range" : [-20.0, 20.0],
+        "steps" : 100,
         "index" : 3
     },
     "Rey" : {
@@ -42,8 +42,13 @@ degrees_of_freedom = {
     }
 }
 
-airfoil.generate_database(degrees_of_freedom=degrees_of_freedom)
-airfoil.export_database(filename="database.txt")
+#airfoil.generate_database(degrees_of_freedom=degrees_of_freedom)
+#airfoil.export_database(filename="database.txt")
+airfoil.import_database(filename="database.txt")
 
-CL = airfoil.get_CL(alpha=1.0, Rey=250000, Mach=0.1, trailing_flap=0.0)
+CL = airfoil.get_CL(alpha=0.0, Rey=250000, Mach=0.1, trailing_flap=0.0)
+print(CL)
+CL = airfoil.get_CL(alpha=0.0, Rey=250000, Mach=0.1, trailing_flap=5.0)
+print(CL)
+CL = airfoil.get_CL(alpha=0.0, Rey=250000, Mach=0.1, trailing_flap=10.0)
 print(CL)

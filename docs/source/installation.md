@@ -2,14 +2,6 @@
 
 ## Prerequisites
 
- AirfoilDatabase runs on Python 3 and the following Python packages are required:
-
-* numpy
-* scipy
-* pytest
-* pandas
-* matplotlib
-
 ### Getting Python
 
 If you do not have Python installed on your machine, it can be downloaded from [https://www.anaconda.com/distribution/](https://www.anaconda.com/distribution/).

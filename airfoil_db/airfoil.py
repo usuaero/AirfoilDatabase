@@ -609,7 +609,7 @@ class Airfoil:
             alpha = kwargs.get("alpha", 0.0)
             trailing_flap = kwargs.get("trailing_flap", 0.0)
             trailing_flap_efficiency = kwargs.get("trailing_flap_efficiency", 1.0)
-            aL0 = self.get_aL0()
+            aL0 = self.get_aL0(**kwargs)
 
             # Calculate lift coefficient
             CL = self._CLa*(alpha-aL0+trailing_flap*trailing_flap_efficiency)
@@ -671,7 +671,7 @@ class Airfoil:
         # data_index: 0 = CL, 1 = CD, 2 = Cm
 
         # Get params
-        param_vals = np.zeros((1,self._num_dofs))
+        param_vals = np.zeros(self._num_dofs)
         for i, dof in enumerate(self._dof_db_order):
             param_vals[i] = kwargs.get(dof, self._dof_defaults[dof])
         
@@ -680,23 +680,53 @@ class Airfoil:
 
 
 
-    def get_aL0(self, inputs):
+    def get_aL0(self, **kwargs):
         """Returns the zero-lift angle of attack
 
         Parameters
         ----------
-        inputs : ndarray
-            Parameters which can affect the airfoil coefficients. The first
-            three are always alpha, Reynolds number, and Mach number. Fourth 
-            is flap efficiency and fifth is flap deflection.
+        Rey : float, optional
+            Reynolds number. Defaults to 100000.
+
+        Mach : float, optional
+            Mach number. Defaults to 0.
+
+        trailing_flap : float, optional
+            Trailing flap deflection in degrees. Defaults to 0.
 
         Returns
         -------
         float
             Zero-lift angle of attack
         """
+
+        # Linear airfoil model
         if self._type == "linear":
             return self._aL0
+
+        # Database
+        elif self._type == "database":
+            
+            # Use secant method in alpha to find a_L0
+            a0 = 0.0
+            CL0 = self.get_CL(alpha=a0, **kwargs)
+            a1 = 0.001
+            CL1 = self.get_CL(alpha=a1, **kwargs)
+            
+            # Iterate
+            while abs(a1-a0)>1e-10:
+                
+                # Update estimate
+                a2 = a1-CL1*(a0-a1)/(CL0-CL1)
+                CL2 = self.get_CL(alpha=a2, **kwargs)
+
+                # Update for next iteration
+                a0 = a1
+                CL0 = CL1
+                a1 = a2
+                CL1 = CL2
+
+            return a2
 
 
     def get_CLM(self, inputs):
@@ -1155,9 +1185,13 @@ class Airfoil:
         self._num_dofs = 0
         for i, col_name in enumerate(header.split()):
 
+            # Stop once we get to coefficient columns
+            if col_name == "CL":
+                break
+
             # Check it's appropriate
             if col_name not in self._allowable_dofs:
-                raise IOError("Column {0} in {1} is not an allowable degree of freedom specification.".format(col_name, filename))
+                raise IOError("Column {0} in {1} is not an allowable degree of freedom or coefficient specification.".format(col_name, filename))
 
             # Add
             self._dof_db_cols[col_name] = i
@@ -1166,6 +1200,9 @@ class Airfoil:
         # Figure out the order of the columns in the database
         dof_sorted = sorted(self._dof_db_cols.items(), key=operator.itemgetter(1))
         self._dof_db_order = [x[0] for x in dof_sorted]
+
+        # Store type
+        self._type = "database"
 
 
     def run_xfoil(self, **kwargs):
