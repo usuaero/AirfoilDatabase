@@ -12,21 +12,22 @@ airfoil_input = {
         #"NACA" : "9412"
     },
     "trailing_flap" : {
-        "type" : "linear",
+        "type" : "parabolic",
         "x" : 0.7
     }
 }
 
 airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
+airfoil.get_outline_points(trailing_flap_deflection=-40.0)
 
 degrees_of_freedom = {
     "alpha" : {
-        "range" : [-20.0, 20.0],
-        "steps" : 100,
+        "range" : [-10.0, 10.0],
+        "steps" : 10,
         "index" : 3
     },
     "Rey" : {
-        "range" : [100000, 500000],
+        "range" : [100000, 400000],
         "steps" : 4,
         "index" : 0
     },
@@ -44,11 +45,11 @@ degrees_of_freedom = {
 
 #airfoil.generate_database(degrees_of_freedom=degrees_of_freedom)
 #airfoil.export_database(filename="database.txt")
-airfoil.import_database(filename="database.txt")
-
-CL = airfoil.get_CL(alpha=0.0, Rey=250000, Mach=0.1, trailing_flap=0.0)
-print(CL)
-CL = airfoil.get_CL(alpha=0.0, Rey=250000, Mach=0.1, trailing_flap=5.0)
-print(CL)
-CL = airfoil.get_CL(alpha=0.0, Rey=250000, Mach=0.1, trailing_flap=10.0)
-print(CL)
+#airfoil.import_database(filename="database.txt")
+#
+#CL = airfoil.get_CL(alpha=0.0, Rey=150000, Mach=0.1, trailing_flap=0.0)
+#print(CL)
+#CL = airfoil.get_CL(alpha=0.0, Rey=150000, Mach=0.1, trailing_flap=5.0)
+#print(CL)
+#CL = airfoil.get_CL(alpha=0.0, Rey=210000, Mach=0.1, trailing_flap=10.0)
+#print(CL)
