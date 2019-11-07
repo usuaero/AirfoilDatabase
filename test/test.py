@@ -18,35 +18,35 @@ airfoil_input = {
 }
 
 airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
-airfoil.get_outline_points(trailing_flap_deflection=-40.0)
+#airfoil.get_outline_points(trailing_flap_deflection=-10.0)
 
 degrees_of_freedom = {
     "alpha" : {
-        "range" : [-10.0, 10.0],
-        "steps" : 10,
-        "index" : 3
+        "range" : [-6.0, 6.0],
+        "steps" : 5,
+        "index" : 1
     },
     "Rey" : {
         "range" : [100000, 400000],
         "steps" : 4,
-        "index" : 0
-    },
-    "Mach" : {
-        "range" : [0.0, 0.4],
-        "steps" : 4,
-        "index" : 1
-    },
-    "trailing_flap" : {
-        "range" : [-20.0, 20.0],
-        "steps" : 10,
         "index" : 2
+    },
+    #"Mach" : {
+    #    "range" : [0.0, 0.4],
+    #    "steps" : 4,
+    #    "index" : 3
+    #},
+    "trailing_flap" : {
+        "range" : [-5.0, 5.0],
+        "steps" : 5,
+        "index" : 0
     }
 }
 
-#airfoil.generate_database(degrees_of_freedom=degrees_of_freedom)
-#airfoil.export_database(filename="database.txt")
+airfoil.generate_database(degrees_of_freedom=degrees_of_freedom)
+airfoil.export_database(filename="database.txt")
 #airfoil.import_database(filename="database.txt")
-#
+
 #CL = airfoil.get_CL(alpha=0.0, Rey=150000, Mach=0.1, trailing_flap=0.0)
 #print(CL)
 #CL = airfoil.get_CL(alpha=0.0, Rey=150000, Mach=0.1, trailing_flap=5.0)

@@ -897,7 +897,7 @@ class Airfoil:
 
                     # Iterate
                     while (abs(R1)>1e-10).any():
-                        E_p2 = E_p1-R1*(E_p0-E_p1)/(R0-R1)
+                        E_p2 = np.where(np.abs(R0-R1) != 0.0, E_p1-R1*(E_p0-E_p1)/(R0-R1), E_p1) # This will throw a warning but shouldn't fail
                         R2 = E_p2/2*np.sqrt(E_p2**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p2/l_n*R_tan_df)-E_0
 
                         # Update for next iteration
@@ -952,7 +952,7 @@ class Airfoil:
                 Y = np.concatenate([Y_t[::-1], Y_b])
 
                 # Plot result
-                if True:
+                if False:
                     plt.figure()
                     plt.plot(X, Y)
                     plt.plot(x_f, y_f, 'rx')
@@ -1147,11 +1147,12 @@ class Airfoil:
         # Arrange into 2D database
         self._data = np.zeros((num_rows, num_cols))
         database_row = 0
+        coef_shape = CL.shape
 
-        for i, alpha in enumerate(xfoil_args["alpha"]):
-            for j, Rey in enumerate(xfoil_args["Rey"]):
-                for k, Mach in enumerate(xfoil_args["Mach"]):
-                    for l, trailing_flap in enumerate(xfoil_args["trailing_flap"]):
+        for i in range(coef_shape[0]):
+            for j in range(coef_shape[1]):
+                for k in range(coef_shape[2]):
+                    for l in range(coef_shape[3]):
 
                         # Check for nan
                         if np.isnan(CL[i,j,k,l]):
@@ -1159,7 +1160,15 @@ class Airfoil:
 
                         # Append independent vars to database
                         for m, dof in enumerate(self._dof_db_order):
-                            self._data[database_row,m] = locals().get(dof)
+                            if dof == "alpha":
+                                ind = i
+                            elif dof == "Rey":
+                                ind = j
+                            elif dof == "Mach":
+                                ind = k
+                            else:
+                                ind = l
+                            self._data[database_row,m] = xfoil_args[dof][ind]
                         
                         # Append coefficients
                         self._data[database_row,self._num_dofs] = CL[i,j,k,l]
@@ -1168,9 +1177,10 @@ class Airfoil:
 
                         database_row += 1
 
-        # Sort by columns
+        # Sort by columns so the first column is perfectly in order
         dtype = ",".join(['i8' for i in range(num_cols)])
-        self._data.view(dtype=dtype).sort(order=['f{0}'.format(i) for i in range(self._num_dofs)], axis=0)
+        for i in range(self._num_dofs,-1,-1):
+            self._data = self._data[self._data[:,i].argsort(axis=0, kind='stable')] # 'stable' option is necessary to maintain ordering of columns not being actively sorted
 
 
     def _setup_ind_var(self, input_dict):
@@ -1351,7 +1361,7 @@ class Airfoil:
 
                 # Read in geometry
                 commands += ['LOAD {0}'.format(geom_file),
-                             '{0}'.format(self.name)]
+                             '{0}_{1:.3E}'.format(self.name, delta_ft)]
 
                 # Set viscous mode
                 commands += ['OPER',
@@ -1443,12 +1453,8 @@ class Airfoil:
                             CD[i,j,k,l] = CD[i-1,j,k,l]*(1-weight)+CD[i+1,j,k,l]*weight
                             Cm[i,j,k,l] = Cm[i-1,j,k,l]*(1-weight)+Cm[i+1,j,k,l]*weight
 
-
-        # Clean up polar files
-        dir_list = os.listdir()
-        for item in dir_list:
-            if os.path.isfile(item) and ".pacc" in item:
-                sp.call(['rm', item])
+                # Clean up polar files
+                sp.call(['rm', filename])
 
         return CL, CD, Cm
 
