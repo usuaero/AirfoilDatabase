@@ -1212,9 +1212,12 @@ class Airfoil:
 
             # Create header
             header = []
+
+            # Add degrees of freedom
             for dof in sorted(self._dof_db_cols.items(), key=operator.itemgetter(1)):
                 header.append("{:>20s}".format(dof[0]))
 
+            # Add coefficients
             header.append("{:>20s}".format('CL'))
             header.append("{:>20s}".format('CD'))
             header.append("{:>20s}".format('Cm'))
