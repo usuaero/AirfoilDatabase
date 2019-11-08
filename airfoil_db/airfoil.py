@@ -577,12 +577,13 @@ class Airfoil:
 
 
     def get_CL(self, **kwargs):
-        """Returns the coefficient of lift.
+        """Returns the coefficient of lift. Note: all parameters can be given as numpy arrays, in which case a numpy array of the coefficient will be returned.
+        To do this, all parameter arrays must have only one dimension and must have the same length.
 
         Parameters
         ----------
         alpha : float, optional
-            Angle of attack in degrees. Defaults to 0.0.
+            Angle of attack in radians. Defaults to 0.0.
 
         Rey : float, optional
             Reynolds number. Defaults to 100000.
@@ -591,7 +592,7 @@ class Airfoil:
             Mach number. Defaults to 0.
 
         trailing_flap : float, optional
-            Trailing flap deflection in degrees. Defaults to 0.
+            Trailing flap deflection in radians. Defaults to 0.
 
         trailing_flap_efficiency : float, optional
             Trailing flap efficiency. Defaults to 1.0.
@@ -613,7 +614,11 @@ class Airfoil:
 
             # Calculate lift coefficient
             CL = self._CLa*(alpha-aL0+trailing_flap*trailing_flap_efficiency)
-            if CL > self._CL_max or CL < -self._CL_max:
+            
+            # Saturate
+            if isinstance(CL, np.ndarray):
+                CL = np.where((CL > self._CL_max) | (CL < -self._CL_max), np.sign(CL)*self._CL_max, CL)
+            elif CL > self._CL_max or CL < -self._CL_max:
                 CL = np.sign(CL)*self._CL_max
 
         # Generated/imported database
@@ -624,7 +629,8 @@ class Airfoil:
 
 
     def get_CD(self, inputs):
-        """Returns the coefficient of drag
+        """Returns the coefficient of drag. note: all parameters can be given as numpy arrays, in which case a numpy array of the coefficient will be returned.
+        to do this, all parameter arrays must have only one dimension and must have the same length.
 
         Parameters
         ----------
@@ -648,7 +654,8 @@ class Airfoil:
 
 
     def get_Cm(self, inputs):
-        """Returns the moment coefficient
+        """Returns the moment coefficient. note: all parameters can be given as numpy arrays, in which case a numpy array of the coefficient will be returned.
+        to do this, all parameter arrays must have only one dimension and must have the same length.
 
         Parameters
         ----------
@@ -670,14 +677,23 @@ class Airfoil:
         # Returns an interpolated data point from the database.
         # data_index: 0 = CL, 1 = CD, 2 = Cm
 
+        # Determine size of query
+        max_size = 1
+        for dof in self._dof_db_order:
+            param = kwargs.get(dof, self._dof_defaults[dof])
+            if isinstance(param, np.ndarray):
+                max_size = max(max_size, param.shape[0])
+
         # Get params
-        param_vals = np.zeros(self._num_dofs)
+        param_vals = np.zeros((max_size,self._num_dofs))
         for i, dof in enumerate(self._dof_db_order):
-            param_vals[i] = kwargs.get(dof, self._dof_defaults[dof])
+            param_vals[:,i] = kwargs.get(dof, self._dof_defaults[dof])
 
         # Interpolate
-        return interp.griddata(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+data_index].flatten(), param_vals, method='linear').item()
-
+        if max_size == 1:
+            return interp.griddata(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+data_index].flatten(), param_vals, method='linear').item()
+        else:
+            return interp.griddata(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+data_index].flatten(), param_vals, method='linear')
 
 
     def get_aL0(self, **kwargs):
@@ -692,7 +708,7 @@ class Airfoil:
             Mach number. Defaults to 0.
 
         trailing_flap : float, optional
-            Trailing flap deflection in degrees. Defaults to 0.
+            Trailing flap deflection in radians. Defaults to 0.
 
         Returns
         -------
@@ -798,7 +814,7 @@ class Airfoil:
             Whether to cluster points about the leading and trailing edges. Defaults to True.
 
         trailing_flap_deflection : float, optional
-            Trailing flap deflection in degrees (positive down). Defaults to zero.
+            Trailing flap deflection in radians (positive down). Defaults to zero.
 
         export : str
             If specified, the outline points will be saved to a file. Defaults to no file.
@@ -842,7 +858,7 @@ class Airfoil:
             else:
 
                 # Get flap parameters
-                df = np.radians(trailing_flap_deflection)
+                df = trailing_flap_deflection
                 x_f = self._trailing_flap.x
                 y_f = self._trailing_flap.y
 
@@ -939,11 +955,11 @@ class Airfoil:
                 X_t, Y_t = self._trim_surface(X_t, Y_t, "forward")
 
                 # Check if we need to fill anything in
-                fill_top = (trailing_flap_deflection > 0 and y_f < y_h_t) or (trailing_flap_deflection < 0 and y_f > y_h_t)
+                fill_top = (df > 0 and y_f < y_h_t) or (df < 0 and y_f > y_h_t)
                 if fill_top:
                     X_t, Y_t = self._fill_surface(X_t, Y_t, x_f, y_f, r_t)
 
-                fill_bot = (trailing_flap_deflection > 0 and y_f < y_h_b) or (trailing_flap_deflection < 0 and y_f > y_h_b)
+                fill_bot = (df > 0 and y_f < y_h_b) or (df < 0 and y_f > y_h_b)
                 if fill_bot:
                     X_b, Y_b = self._fill_surface(X_b, Y_b, x_f, y_f, r_b)
 
@@ -1109,6 +1125,7 @@ class Airfoil:
                 "Mach" : 0.0
                 "trailing_flap" : 0.0
 
+            Please note that all angular degreees of freedom are in radians, rather than degrees.
             If "steps" is 1, this variable will be constant for all Xfoil runs and will not be considered as
             an independent variable for the purpose of database generation. In this case, "index" should not be
             specified and the values in "range" should be the same.
@@ -1278,7 +1295,7 @@ class Airfoil:
         Parameters
         ----------
         alpha : float or list of float
-            Angle(s) of attack to calculate the coefficients at. Defaults to 0.0.
+            Angle(s) of attack to calculate the coefficients at in radians. Defaults to 0.0.
 
         Rey : float or list of float
             Reynolds number(s) to calculate the coefficients at. Defaults to 100000.
@@ -1287,7 +1304,7 @@ class Airfoil:
             Mach number(s) to calculate the coefficients at. Defaults to 0.0.
 
         trailing_flap : float or list of float
-            Flap deflection(s) to calculate the coefficients at. Defaults to 0.0.
+            Flap deflection(s) to calculate the coefficients at in radians. Defaults to 0.0.
 
         N : int, optional
             Number of panel nodes for Xfoil to use. Defaults to 200.
@@ -1395,7 +1412,7 @@ class Airfoil:
 
                         # Loop through alphas
                         for a in alphas:
-                            commands.append('ALFA {0}'.format(a))
+                            commands.append('ALFA {0}'.format(m.degrees(a)))
 
                         # End polar accumulation
                         commands += ['PACC {0}'.format(pacc_index),
@@ -1439,7 +1456,7 @@ class Airfoil:
                 for i_iter, alpha in enumerate(alpha_i):
 
                     # Line up with our original independent alpha, as Xfoil does not output a non-converged result
-                    i_true = min(range(len(alphas)), key=lambda i: abs(alphas[i]-alpha))
+                    i_true = min(range(len(alphas)), key=lambda i: abs(alphas[i]-m.radians(alpha)))
 
                     CL[i_true,j,k,l] = CL_i[i_iter]
                     CD[i_true,j,k,l] = CD_i[i_iter]

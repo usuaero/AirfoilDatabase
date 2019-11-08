@@ -1,11 +1,12 @@
 import airfoil_db as adb
 import matplotlib.pyplot as plt
+import numpy as np
 
 geometry_file = "test/uCRM-9_wr0_xfoil.txt"
 #geometry_file = "test/NACA_9412_geom.txt"
 #geometry_file = "test/NACA_0012_geom.txt"
 airfoil_input = {
-    "type" : "database",
+    "type" : "linear",
     "geometry" : {
         "outline_points" : geometry_file,
         "top_first" : True
@@ -43,13 +44,14 @@ degrees_of_freedom = {
     }
 }
 
-airfoil.generate_database(degrees_of_freedom=degrees_of_freedom)
-airfoil.export_database(filename="database.txt")
+#airfoil.generate_database(degrees_of_freedom=degrees_of_freedom)
+#airfoil.export_database(filename="database.txt")
 #airfoil.import_database(filename="database.txt")
 
-#CL = airfoil.get_CL(alpha=0.0, Rey=150000, Mach=0.1, trailing_flap=0.0)
-#print(CL)
-#CL = airfoil.get_CL(alpha=0.0, Rey=150000, Mach=0.1, trailing_flap=5.0)
-#print(CL)
-#CL = airfoil.get_CL(alpha=0.0, Rey=210000, Mach=0.1, trailing_flap=10.0)
-#print(CL)
+CL = airfoil.get_CL(alpha=0.0, Rey=150000, Mach=0.1, trailing_flap=0.0)
+print(CL)
+alphas = np.linspace(0, np.pi/20, 10)
+CL = airfoil.get_CL(alpha=alphas, Rey=150000, Mach=0.1, trailing_flap=np.pi*3.0/180)
+print(CL)
+CL = airfoil.get_CL(alpha=0.0, Rey=210000, Mach=0.1, trailing_flap=np.pi*5.0/180)
+print(CL)

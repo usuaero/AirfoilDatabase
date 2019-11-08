@@ -9,4 +9,5 @@ Airfoil Database
    installation
    xfoil_installation
    creating_input_files
+   airfoil_class
    support
