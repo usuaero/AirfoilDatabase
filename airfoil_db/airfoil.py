@@ -599,7 +599,7 @@ class Airfoil:
 
         Returns
         -------
-        float
+        float or ndarray
             Lift coefficient
         """
         
@@ -628,49 +628,83 @@ class Airfoil:
         return CL
 
 
-    def get_CD(self, inputs):
+    def get_CD(self, **kwargs):
         """Returns the coefficient of drag. note: all parameters can be given as numpy arrays, in which case a numpy array of the coefficient will be returned.
         to do this, all parameter arrays must have only one dimension and must have the same length.
 
         Parameters
         ----------
-        inputs : ndarray
-            Parameters which can affect the airfoil coefficients. The first
-            three are always alpha, Reynolds number, and Mach number. Fourth 
-            is flap efficiency and fifth is flap deflection.
+        alpha : float, optional
+            Angle of attack in radians. Defaults to 0.0.
+
+        Rey : float, optional
+            Reynolds number. Defaults to 100000.
+
+        Mach : float, optional
+            Mach number. Defaults to 0.
+
+        trailing_flap : float, optional
+            Trailing flap deflection in radians. Defaults to 0.
+
+        trailing_flap_efficiency : float, optional
+            Trailing flap efficiency. Defaults to 1.0.
 
         Returns
         -------
-        float
+        float or ndarray
             Drag coefficient
         """
         if self._type == "linear":
-            delta_flap = inputs[4]
-            inputs_wo_flap = copy.copy(inputs)
-            inputs_wo_flap[3:] = 0.0
-            CL = self.get_CL(inputs_wo_flap)
-            CD_flap = 0.002*np.abs(delta_flap)*180/np.pi # A rough estimate for flaps
-            return self._CD0+self._CD1*CL+self._CD2*CL**2+CD_flap
+            df = kwargs.pop("trailing_flap", 0.0)
+            kwargs.pop("trailing_flap_efficiency", None)
+            CL = self.get_CL(**kwargs)
+            CD_flap = 0.002*np.abs(df)*180/np.pi # A rough estimate for flaps
+            CD = self._CD0+self._CD1*CL+self._CD2*CL**2+CD_flap
+
+        # Generated/imported database
+        elif self._type == "database":
+            CD = self._get_database_data(1, **kwargs)
+
+        return CD
 
 
-    def get_Cm(self, inputs):
+    def get_Cm(self, **kwargs):
         """Returns the moment coefficient. note: all parameters can be given as numpy arrays, in which case a numpy array of the coefficient will be returned.
         to do this, all parameter arrays must have only one dimension and must have the same length.
 
         Parameters
         ----------
-        inputs : ndarray
-            Parameters which can affect the airfoil coefficients. The first
-            three are always alpha, Reynolds number, and Mach number. Fourth 
-            is flap efficiency and fifth is flap deflection.
+        alpha : float, optional
+            Angle of attack in radians. Defaults to 0.0.
+
+        Rey : float, optional
+            Reynolds number. Defaults to 100000.
+
+        Mach : float, optional
+            Mach number. Defaults to 0.
+
+        trailing_flap : float, optional
+            Trailing flap deflection in radians. Defaults to 0.
+
+        trailing_flap_efficiency : float, optional
+            Trailing flap efficiency. Defaults to 1.0.
 
         Returns
         -------
-        float
+        float or ndarray
             Moment coefficient
         """
         if self._type == "linear":
-            return self._Cma*inputs[0]+self._CmL0+inputs[3]*inputs[4]
+            alpha = kwargs.get("alpha", 0.0)
+            df = kwargs.get("trailing_flap", 0.0)
+            flap_eff = kwargs.get("trailing_flap_efficiency", 1.0)
+            Cm =  self._Cma*alpha+self._CmL0+df*flap_eff
+
+        # Generated/imported database
+        elif self._type == "database":
+            Cm = self._get_database_data(2, **kwargs)
+
+        return Cm
 
 
     def _get_database_data(self, data_index, **kwargs):
