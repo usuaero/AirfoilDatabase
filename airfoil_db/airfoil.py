@@ -779,61 +779,148 @@ class Airfoil:
             return a2
 
 
-    def get_CLM(self, inputs):
+    def get_CLM(self, **kwargs):
         """Returns the lift slope with respect to Mach number
 
         Parameters
         ----------
-        inputs : ndarray
-            Parameters which can affect the airfoil coefficients. The first
-            three are always alpha, Reynolds number, and Mach number. Fourth 
-            is flap efficiency and fifth is flap deflection.
+        alpha : float, optional
+            Angle of attack in radians. Defaults to 0.0.
+
+        Rey : float, optional
+            Reynolds number. Defaults to 100000.
+
+        Mach : float, optional
+            Mach number. Defaults to 0.
+
+        trailing_flap : float, optional
+            Trailing flap deflection in radians. Defaults to 0.
+
+        dx : float
+            Step size for finite-difference equation. Defaults to 0.05.
 
         Returns
         -------
-        float
+        float or ndarray
             Lift slope with respect to Mach number
         """
+
+        # Linear model
         if self._type == "linear":
             return self._CLM
 
+        # Database
+        elif self._type == "database":
 
-    def get_CLRe(self, inputs):
+            # Check the database is dependent on Mach
+            if "Mach" not in self._dof_db_order:
+                return 0.0
+
+            # Get center Re value
+            dx = kwargs.get("dx", 0.05)
+            Mach = kwargs.pop("Mach", 0.0)
+            
+            # Calculate forward and center points (since we'll often be at M=0 and negative M doesn't work)
+            CL1 = self.get_CL(Mach=Mach+dx, **kwargs)
+            CL0 = self.get_CL(Mach=Mach, **kwargs)
+
+            return (CL1-CL0)/dx
+
+
+    def get_CLRe(self, **kwargs):
         """Returns the lift slope with respect to Reynolds number
 
         Parameters
         ----------
-        inputs : ndarray
-            Parameters which can affect the airfoil coefficients. The first
-            three are always alpha, Reynolds number, and Mach number. Fourth 
-            is flap efficiency and fifth is flap deflection.
+        alpha : float, optional
+            Angle of attack in radians. Defaults to 0.0.
+
+        Rey : float, optional
+            Reynolds number. Defaults to 100000.
+
+        Mach : float, optional
+            Mach number. Defaults to 0.
+
+        trailing_flap : float, optional
+            Trailing flap deflection in radians. Defaults to 0.
+
+        dx : float
+            Step size for finite-difference equation. Defaults to 1000.
 
         Returns
         -------
-        float
+        float or ndarray
             Lift slope with respect to Reynolds number
         """
+
+        # Linear model
         if self._type == "linear":
             return self._CLRe
 
+        # Database
+        elif self._type == "database":
 
-    def get_CLa(self, inputs):
+            # Check the database is dependent on Re
+            if "Rey" not in self._dof_db_order:
+                return 0.0
+
+            # Get center Re value
+            dx = kwargs.get("dx", 1000)
+            Rey = kwargs.pop("Rey", 100000)
+            
+            # Calculate forward and backward points
+            CL1 = self.get_CL(Rey=Rey+dx, **kwargs)
+            CL0 = self.get_CL(Rey=Rey-dx, **kwargs)
+
+            return (CL1-CL0)/(2*dx)
+
+
+    def get_CLa(self, **kwargs):
         """Returns the lift slope
 
         Parameters
         ----------
-        inputs : ndarray
-            Parameters which can affect the airfoil coefficients. The first
-            three are always alpha, Reynolds number, and Mach number. Fourth 
-            is flap efficiency and fifth is flap deflection.
+        alpha : float, optional
+            Angle of attack in radians. Defaults to 0.0.
+
+        Rey : float, optional
+            Reynolds number. Defaults to 100000.
+
+        Mach : float, optional
+            Mach number. Defaults to 0.
+
+        trailing_flap : float, optional
+            Trailing flap deflection in radians. Defaults to 0.
+
+        dx : float, optional
+            Step size for finite-difference equation. Defaults to 0.001 radians.
 
         Returns
         -------
-        float
+        float or ndarray
             Lift slope
         """
+
+        # Linear model
         if self._type == "linear":
             return self._CLa
+
+        # Database
+        elif self._type == "database":
+
+            # Check the database is dependent on alpha
+            if "alpha" not in self._dof_db_order:
+                return 0.0
+
+            # Get center alpha value
+            dx = kwargs.get("dx", 0.001)
+            alpha = kwargs.pop("alpha", 0.0)
+            
+            # Calculate forward and backward points
+            CL1 = self.get_CL(alpha=alpha+dx, **kwargs)
+            CL0 = self.get_CL(alpha=alpha-dx, **kwargs)
+
+            return (CL1-CL0)/(2*dx)
 
 
     def get_outline_points(self, N=200, cluster=True, trailing_flap_deflection=0.0, export=None, top_first=True):
