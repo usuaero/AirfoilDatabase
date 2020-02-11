@@ -48,10 +48,12 @@ airfoil.generate_database(degrees_of_freedom=degrees_of_freedom, max_iter=100)
 airfoil.export_database(filename="database.txt")
 #airfoil.import_database(filename="database.txt")
 
-alphas = np.linspace(0, 10, 10)
+# Check interpolation
+alphas = np.linspace(-10, 10, 10)
 CL = airfoil.get_CL(alpha=alphas)
-print(CL)
 CD = airfoil.get_CD(alpha=alphas)
-print(CD)
 Cm = airfoil.get_Cm(alpha=alphas)
+
+print(CL)
+print(CD)
 print(Cm)

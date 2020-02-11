@@ -1570,6 +1570,7 @@ class Airfoil:
                 try:
                     alpha_i, CL_i, CD_i, Cm_i, Re_i, M_i = self.read_pacc_file(filename)
                 except FileNotFoundError:
+                    raise RuntimeWarning("Couldn't find results file {0}. Usually an indication of Xfoil crashing.".format(filename))
                     continue
 
                 # Determine the Reynolds and Mach indices
@@ -1582,7 +1583,7 @@ class Airfoil:
                 for i_iter, alpha in enumerate(alpha_i):
 
                     # Line up with our original independent alpha, as Xfoil does not output a non-converged result
-                    i_true = min(range(len(alphas)), key=lambda i: abs(alphas[i]-m.radians(alpha)))
+                    i_true = min(range(len(alphas)), key=lambda i: abs(alphas[i]-alpha))
 
                     CL[i_true,j,k,l] = CL_i[i_iter]
                     CD[i_true,j,k,l] = CD_i[i_iter]
