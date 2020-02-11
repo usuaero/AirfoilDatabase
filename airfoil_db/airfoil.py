@@ -12,7 +12,7 @@ import os
 import operator
 
 class Flap:
-    """A class defining a flap.
+    """A class defining a flap. Really just a storage class.
 
     Parameters
     ----------
@@ -935,7 +935,7 @@ class Airfoil:
             Whether to cluster points about the leading and trailing edges. Defaults to True.
 
         trailing_flap_deflection : float, optional
-            Trailing flap deflection in radians (positive down). Defaults to zero.
+            Trailing flap deflection in degrees (positive down). Defaults to zero.
 
         export : str
             If specified, the outline points will be saved to a file. Defaults to no file.
@@ -979,7 +979,7 @@ class Airfoil:
             else:
 
                 # Get flap parameters
-                df = trailing_flap_deflection
+                df = m.radians(trailing_flap_deflection)
                 x_f = self._trailing_flap.x
                 y_f = self._trailing_flap.y
 
@@ -1034,7 +1034,7 @@ class Airfoil:
 
                     # Iterate
                     while (abs(R1)>1e-10).any():
-                        E_p2 = np.where(np.abs(R0-R1) != 0.0, E_p1-R1*(E_p0-E_p1)/(R0-R1), E_p1) # This will throw a warning but shouldn't fail
+                        E_p2 = np.where(np.abs(R0-R1) != 0.0, E_p1-R1*(E_p0-E_p1)/(R0-R1), E_p1) # This may throw a warning but shouldn't fail
                         R2 = E_p2/2*np.sqrt(E_p2**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p2/l_n*R_tan_df)-E_0
 
                         # Update for next iteration
@@ -1055,7 +1055,7 @@ class Airfoil:
 
                     # Calculate deflected camber line
                     C = np.arctan(2*E_p/E_te*tan_df)
-                    x_c[flap_ind] =  x_p+dy_c*np.sin(C)
+                    x_c[flap_ind] = x_p+dy_c*np.sin(C)
                     y_c[flap_ind] = y_p+dy_c*np.cos(C)
 
                 # Calculate camber line gradient
@@ -1083,6 +1083,11 @@ class Airfoil:
                 fill_bot = (df > 0 and y_f < y_h_b) or (df < 0 and y_f > y_h_b)
                 if fill_bot:
                     X_b, Y_b = self._fill_surface(X_b, Y_b, x_f, y_f, r_b)
+
+                # Make sure the trailing edge is sealed
+                if self._get_cart_dist(X_t[-1], Y_t[-1], X_b[-1], Y_b[-1]) > 1e-3:
+                    X_t = np.concatenate([X_t, X_b[-1][np.newaxis]])
+                    Y_t = np.concatenate([Y_t, Y_b[-1][np.newaxis]])
 
                 # Concatenate top and bottom points
                 X = np.concatenate([X_t[::-1], X_b])
@@ -1246,7 +1251,7 @@ class Airfoil:
                 "Mach" : 0.0
                 "trailing_flap" : 0.0
 
-            Please note that all angular degreees of freedom are in radians, rather than degrees.
+            Please note that all angular degreees of freedom are in degrees, rather than radians.
             If "steps" is 1, this variable will be constant for all Xfoil runs and will not be considered as
             an independent variable for the purpose of database generation. In this case, "index" should not be
             specified and the values in "range" should be the same.
@@ -1416,7 +1421,7 @@ class Airfoil:
         Parameters
         ----------
         alpha : float or list of float
-            Angle(s) of attack to calculate the coefficients at in radians. Defaults to 0.0.
+            Angle(s) of attack to calculate the coefficients at in degrees. Defaults to 0.0.
 
         Rey : float or list of float
             Reynolds number(s) to calculate the coefficients at. Defaults to 100000.
@@ -1425,10 +1430,10 @@ class Airfoil:
             Mach number(s) to calculate the coefficients at. Defaults to 0.0.
 
         trailing_flap : float or list of float
-            Flap deflection(s) to calculate the coefficients at in radians. Defaults to 0.0.
+            Flap deflection(s) to calculate the coefficients at in degrees. Defaults to 0.0.
 
         N : int, optional
-            Number of panel nodes for Xfoil to use. Defaults to 200.
+            Number of panels for Xfoil to use. Defaults to 200.
 
         max_iter : int, optional
             Maximum iterations for Xfoil. Defaults to 5000.
@@ -1533,7 +1538,7 @@ class Airfoil:
 
                         # Loop through alphas
                         for a in alphas:
-                            commands.append('ALFA {0}'.format(m.degrees(a)))
+                            commands.append('ALFA {0}'.format(a))
 
                         # End polar accumulation
                         commands += ['PACC {0}'.format(pacc_index),

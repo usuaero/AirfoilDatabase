@@ -23,8 +23,8 @@ airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
 
 degrees_of_freedom = {
     "alpha" : {
-        "range" : [-6.0, 6.0],
-        "steps" : 5,
+        "range" : [-10.0, 10.0],
+        "steps" : 10,
         "index" : 1
     },
     "Rey" : {
@@ -44,7 +44,7 @@ degrees_of_freedom = {
     }
 }
 
-airfoil.generate_database(degrees_of_freedom=degrees_of_freedom)
+airfoil.generate_database(degrees_of_freedom=degrees_of_freedom, max_iter=100)
 airfoil.export_database(filename="database.txt")
 #airfoil.import_database(filename="database.txt")
 
