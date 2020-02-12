@@ -39,7 +39,7 @@ degrees_of_freedom = {
     #    "index" : 3
     #},
     "trailing_flap" : {
-        "range" : [m.radians(-15.0), m.radians(15.0)],
+        "range" : [m.radians(-20.0), m.radians(20.0)],
         "steps" : 5,
         "index" : 0
     }
@@ -58,9 +58,10 @@ CD = airfoil.get_CD(alpha=alphas, trailing_flap=flaps, Rey=Re, Mach=0.1)
 Cm = airfoil.get_Cm(alpha=alphas, trailing_flap=flaps, Rey=Re, Mach=0.1)
 CLa = airfoil.get_CLa(alpha=alphas, trailing_flap=flaps, Rey=Re, Mach=0.1)
 aL0 = airfoil.get_aL0(trailing_flap=flaps, Rey=Re, Mach=0.1)
+#aL0 = airfoil.get_aL0(trailing_flap=0.0)
 
-print(CL)
-print(CD)
-print(Cm)
-print(CLa)
+#print(CL)
+#print(CD)
+#print(Cm)
+#print(CLa)
 print(aL0)

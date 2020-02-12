@@ -758,31 +758,39 @@ class Airfoil:
         elif self._type == "database":
 
             # Use secant method in alpha to find a_L0
+            # Initialize secant method
             a0 = 0.0
             CL0 = self.get_CL(alpha=a0, **kwargs)
             a0 = np.zeros_like(CL0)
-            a1 = np.zeros_like(CL0)+0.001
+            a1 = np.zeros_like(CL0)+0.01
             CL1 = self.get_CL(alpha=a1, **kwargs)
             a2 = np.zeros_like(CL1)
+
+            # If we're outside the domain of the database, aL0 should be nan
+            a2[np.where(np.isnan(CL1))] = np.nan
             
             # Iterate
-            not_converged = np.where((np.array(np.abs(a1-a0))>1e-10) & ~np.isnan(a1))[0]
-            while not_converged.any():
+            np.seterr(invalid='ignore')
+            not_converged = np.where(np.array(np.abs(CL1)>1e-10))[0]
+            while not_converged.size>0:
                 
                 # Update estimate
-                a2[not_converged] = (a1-CL1*(a0-a1)/(CL0-CL1))[not_converged]
-                print(a2)
+                if a2.size==1:
+                    a2 = (a1-CL1*(a0-a1)/(CL0-CL1))
+                else:
+                    a2[not_converged] = (a1-CL1*(a0-a1)/(CL0-CL1))[not_converged]
                 CL2 = self.get_CL(alpha=a2, **kwargs)
 
                 # Update for next iteration
-                a0 = a1
-                CL0 = CL1
-                a1 = a2
-                CL1 = CL2
+                a0 = np.copy(a1)
+                CL0 = np.copy(CL1)
+                a1 = np.copy(a2)
+                CL1 = np.copy(CL2)
 
                 # Check convergence
-                not_converged = np.where((np.array(np.abs(a1-a0))>1e-10) & ~np.isnan(a1))[0]
+                not_converged = np.where(np.array(np.abs(CL1)>1e-10))[0]
 
+            np.seterr()
             return a2
 
 
