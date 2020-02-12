@@ -756,18 +756,22 @@ class Airfoil:
 
         # Database
         elif self._type == "database":
-            
+
             # Use secant method in alpha to find a_L0
             a0 = 0.0
             CL0 = self.get_CL(alpha=a0, **kwargs)
-            a1 = 0.001
+            a0 = np.zeros_like(CL0)
+            a1 = np.zeros_like(CL0)+0.001
             CL1 = self.get_CL(alpha=a1, **kwargs)
+            a2 = np.zeros_like(CL1)
             
             # Iterate
-            while abs(a1-a0)>1e-10:
+            not_converged = np.where((np.array(np.abs(a1-a0))>1e-10) & ~np.isnan(a1))[0]
+            while not_converged.any():
                 
                 # Update estimate
-                a2 = a1-CL1*(a0-a1)/(CL0-CL1)
+                a2[not_converged] = (a1-CL1*(a0-a1)/(CL0-CL1))[not_converged]
+                print(a2)
                 CL2 = self.get_CL(alpha=a2, **kwargs)
 
                 # Update for next iteration
@@ -775,6 +779,9 @@ class Airfoil:
                 CL0 = CL1
                 a1 = a2
                 CL1 = CL2
+
+                # Check convergence
+                not_converged = np.where((np.array(np.abs(a1-a0))>1e-10) & ~np.isnan(a1))[0]
 
             return a2
 
@@ -935,7 +942,7 @@ class Airfoil:
             Whether to cluster points about the leading and trailing edges. Defaults to True.
 
         trailing_flap_deflection : float, optional
-            Trailing flap deflection in degrees (positive down). Defaults to zero.
+            Trailing flap deflection in radians (positive down). Defaults to zero.
 
         export : str
             If specified, the outline points will be saved to a file. Defaults to no file.
@@ -979,7 +986,7 @@ class Airfoil:
             else:
 
                 # Get flap parameters
-                df = m.radians(trailing_flap_deflection)
+                df = trailing_flap_deflection
                 x_f = self._trailing_flap.x
                 y_f = self._trailing_flap.y
 
@@ -1251,7 +1258,7 @@ class Airfoil:
                 "Mach" : 0.0
                 "trailing_flap" : 0.0
 
-            Please note that all angular degreees of freedom are in degrees, rather than radians.
+            Please note that all angular degreees of freedom are in radians, rather than degrees.
             If "steps" is 1, this variable will be constant for all Xfoil runs and will not be considered as
             an independent variable for the purpose of database generation. In this case, "index" should not be
             specified and the values in "range" should be the same.
@@ -1421,7 +1428,7 @@ class Airfoil:
         Parameters
         ----------
         alpha : float or list of float
-            Angle(s) of attack to calculate the coefficients at in degrees. Defaults to 0.0.
+            Angle(s) of attack to calculate the coefficients at in radians. Defaults to 0.0.
 
         Rey : float or list of float
             Reynolds number(s) to calculate the coefficients at. Defaults to 100000.
@@ -1430,7 +1437,7 @@ class Airfoil:
             Mach number(s) to calculate the coefficients at. Defaults to 0.0.
 
         trailing_flap : float or list of float
-            Flap deflection(s) to calculate the coefficients at in degrees. Defaults to 0.0.
+            Flap deflection(s) to calculate the coefficients at in radians. Defaults to 0.0.
 
         N : int, optional
             Number of panels for Xfoil to use. Defaults to 200.
@@ -1497,7 +1504,7 @@ class Airfoil:
             pacc_files = []
             
             # Export geometry
-            geom_file = os.path.abspath("xfoil_geom_{0}.geom".format(delta_ft))
+            geom_file = os.path.abspath("xfoil_geom_{0:1.6f}.geom".format(delta_ft))
             self.get_outline_points(N=N, trailing_flap_deflection=delta_ft, export=geom_file)
 
             # Initialize xfoil execution
@@ -1538,7 +1545,7 @@ class Airfoil:
 
                         # Loop through alphas
                         for a in alphas:
-                            commands.append('ALFA {0}'.format(a))
+                            commands.append('ALFA {0:1.6f}'.format(m.degrees(a)))
 
                         # End polar accumulation
                         commands += ['PACC {0}'.format(pacc_index),
@@ -1548,7 +1555,6 @@ class Airfoil:
                 # Finish commands
                 commands += ['',
                              'QUIT']
-
 
                 # Run Xfoil
                 xfoil_input = '\r'.join(commands).encode('utf-8')
@@ -1657,7 +1663,7 @@ class Airfoil:
             Cm = []
             for line in lines[12:]:
                 split_line = line.split()
-                alpha.append(float(split_line[0]))
+                alpha.append(m.radians(float(split_line[0])))
                 CL.append(float(split_line[1]))
                 CD.append(float(split_line[2]))
                 Cm.append(float(split_line[4]))

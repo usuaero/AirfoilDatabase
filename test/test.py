@@ -1,6 +1,7 @@
 import airfoil_db as adb
 import matplotlib.pyplot as plt
 import numpy as np
+import math as m
 
 geometry_file = "test/uCRM-9_wr0_xfoil.txt"
 #geometry_file = "test/NACA_9412_geom.txt"
@@ -23,7 +24,7 @@ airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
 
 degrees_of_freedom = {
     "alpha" : {
-        "range" : [-10.0, 10.0],
+        "range" : [m.radians(-10.0), m.radians(10.0)],
         "steps" : 10,
         "index" : 1
     },
@@ -38,22 +39,28 @@ degrees_of_freedom = {
     #    "index" : 3
     #},
     "trailing_flap" : {
-        "range" : [-5.0, 5.0],
+        "range" : [m.radians(-15.0), m.radians(15.0)],
         "steps" : 5,
         "index" : 0
     }
 }
 
-airfoil.generate_database(degrees_of_freedom=degrees_of_freedom, max_iter=100)
-airfoil.export_database(filename="database.txt")
-#airfoil.import_database(filename="database.txt")
+#airfoil.generate_database(degrees_of_freedom=degrees_of_freedom, max_iter=100)
+#airfoil.export_database(filename="database.txt")
+airfoil.import_database(filename="database.txt")
 
 # Check interpolation
-alphas = np.linspace(-10, 10, 10)
-CL = airfoil.get_CL(alpha=alphas)
-CD = airfoil.get_CD(alpha=alphas)
-Cm = airfoil.get_Cm(alpha=alphas)
+alphas = np.radians(np.linspace(-10, 10, 10))
+flaps = np.radians(np.linspace(10, -10, 10))
+Re = np.linspace(0, 500000, 10)
+CL = airfoil.get_CL(alpha=alphas, trailing_flap=flaps, Rey=Re, Mach=0.1)
+CD = airfoil.get_CD(alpha=alphas, trailing_flap=flaps, Rey=Re, Mach=0.1)
+Cm = airfoil.get_Cm(alpha=alphas, trailing_flap=flaps, Rey=Re, Mach=0.1)
+CLa = airfoil.get_CLa(alpha=alphas, trailing_flap=flaps, Rey=Re, Mach=0.1)
+aL0 = airfoil.get_aL0(trailing_flap=flaps, Rey=Re, Mach=0.1)
 
 print(CL)
 print(CD)
 print(Cm)
+print(CLa)
+print(aL0)
