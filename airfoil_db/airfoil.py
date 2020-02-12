@@ -16,22 +16,29 @@ class Flap:
 
     Parameters
     ----------
-    input_dict : dict
-        A dictionary describing the flap.
-
     loc : str
         Can be "trailing" or "leading".
+
+    type : str, optional
+        Can be "linear" or "parabolic". Defaults to "linear".
+
+    x : str, optional
+        x location, relative to chord, where the hinge is. Defaults to 1.0.
+
+    y : str, optional
+        y location, relative to chord, where the hinge is. Defaults to 0.0.
+
     """
 
-    def __init__(self, input_dict, loc):
+    def __init__(self, loc, **kwargs):
         self.loc = loc
-        self.type = input_dict.get("type", "linear")
+        self.type = kwargs.get("type", "linear")
         if self.loc == "trailing":
             def_x = 1.0
         else:
             def_x = 0.0
-        self.x = input_dict.get("x", def_x) # Default behavior is no flap
-        self.y = input_dict.get("y", 0.0)
+        self.x = kwargs.get("x", def_x) # Default behavior is no flap
+        self.y = kwargs.get("y", 0.0)
 
 
 class Airfoil:
@@ -107,7 +114,7 @@ class Airfoil:
 
     def _load_flaps(self):
         # Loads flaps based on the input dict
-        self._trailing_flap = Flap(self._input_dict.get("trailing_flap", {}), "trailing")
+        self._trailing_flap = Flap("trailing", **self._input_dict.get("trailing_flap", {}))
 
 
     def _initialize_geometry(self):
@@ -775,7 +782,7 @@ class Airfoil:
             while not_converged.size>0:
                 
                 # Update estimate
-                if a2.size==1:
+                if a2.size == 1:
                     a2 = (a1-CL1*(a0-a1)/(CL0-CL1))
                 else:
                     a2[not_converged] = (a1-CL1*(a0-a1)/(CL0-CL1))[not_converged]
@@ -831,7 +838,7 @@ class Airfoil:
             if "Mach" not in self._dof_db_order:
                 return 0.0
 
-            # Get center Re value
+            # Get center Mach value
             dx = kwargs.get("dx", 0.05)
             Mach = kwargs.pop("Mach", 0.0)
             
@@ -1677,3 +1684,48 @@ class Airfoil:
                 Cm.append(float(split_line[4]))
 
         return alpha, CL, CD, Cm, Re, M
+
+
+    def _create_filled_database(self):
+        # Fills in missing values in the database to make it a consistent d-dimensional array.
+
+        # Initialize storage for independent vars
+        self._dof_filled = []
+        for i in range(self._num_dofs):
+            self._dof_filled.append([])
+
+        # Gather independent vars
+        for i in range(self._data.shape[0]):
+            for j in range(self._num_dofs):
+
+                # Check if the value is already there
+                if not self._data[i,j] in self._dof_filled[j]:
+                    self._dof_filled[j].append(self._data[i,j])
+
+        # Sort independent vars and initialize filled array
+        shape = []
+        for dof in self._dof_filled:
+            dof.sort()
+            shape.append(len(dof))
+        filled_CL = np.zeros(tuple(shape))
+        filled_CD = np.zeros(tuple(shape))
+        filled_Cm = np.zeros(tuple(shape))
+        N = filled_CL.size
+
+        # Create grid of independent vars
+        raw_grid = np.meshgrid(*self._dof_filled)
+
+        # Parse independent vars for passing to getters
+        params = {}
+        for i, dof in enumerate(self._dof_db_order):
+            params[dof] = raw_grid[i].flatten()
+
+        # Fill in values
+        filled_CL_view = filled_CL.reshape(N)
+        filled_CL_view[:] = self.get_CL(**params)
+        filled_CD_view = filled_CD.reshape(N)
+        filled_CD_view[:] = self.get_CD(**params)
+        filled_Cm_view = filled_Cm.reshape(N)
+        filled_Cm_view[:] = self.get_Cm(**params)
+
+        print(filled_CL)
