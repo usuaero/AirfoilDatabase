@@ -1752,6 +1752,7 @@ class Airfoil:
 
     def generate_polynomial_fit(self, CL_degrees={}, CD_degrees={}, Cm_degrees={}, interaction=False):
         """Generates a set of multivariable polynomials using least-squares regression to approximate the database.
+        Note: This airfoil must have a database already for fits to be created.
 
         Parameters
         ----------
@@ -1777,6 +1778,10 @@ class Airfoil:
             x^2*y). Defaults to False.
 
         """
+
+        # Check for database
+        if not hasattr("_data"):
+            raise RuntimeError("No database found! Please generate or import a database before trying to create polynomial fits.")
         
         # Sort fit degrees
         self._CL_degrees = []

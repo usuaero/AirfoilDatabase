@@ -14,30 +14,6 @@ The following are keys which can be specified in the airfoil JSON object.
 >>
 >>"poly_fit" airfoils are defined by polynomial functions of aerodynamic coefficients as a function of angle of attack, Reynolds number, Mach number, and flap deflection. These fits must be generated using this software. More information, see generate_polynomial_fits(), export_polynomial_fits(), and import_polynomial_fits() in [Airfoil Class](airfoil_class).
 >
->**"aL0" : float, optional**
->>The zero-lift angle of attack in radians. Defaults to 0.0. Only for "linear".
->
->**"CLa" : float, optional**
->>The lift slope in radians^-1. Defaults to 2pi Only for "linear".
->
->**"CmL0" : float, optional**
->>The zero-lift moment coefficient. Defaults to 0.0. Only for "linear".
->
->**"Cma" : float, optional**
->>The moment slope in radians^-1. Defaults to 0.0. Only for "linear".
->
->**"CD0" : float, optional**
->>Constant coefficient in the quadratic fit of the CD/CL curve. Defaults to 0.0. Only for "linear".
->
->**"CD1" : float, optional**
->>Linear coefficient in the quadratic fit of the CD/CL curve. Defaults to 0.0. Only for "linear".
->
->**"CD2" : float, optional**
->>Quadratic coefficient in the quadratic fit of the CD/CL curve. Defaults to 0.0. Only for "linear".
->
->**"CL_max" : float, optional**
->>Maximum lift coefficient. Defaults to infinity. Only for "linear".
->
 >**"geometry" : dict, optional**
 >>Describes the geometry of the airfoil.
 >>
@@ -61,3 +37,29 @@ The following are keys which can be specified in the airfoil JSON object.
 >>
 >>**"is_sealed" : bool, optional**
 >>>Whether the hinge is sealed. Defaults to True.
+>
+>The following keys are pertinent to the "linear" type.
+>
+>**"aL0" : float, optional**
+>>The zero-lift angle of attack in radians. Defaults to 0.0. Only for "linear".
+>
+>**"CLa" : float, optional**
+>>The lift slope in radians^-1. Defaults to 2pi Only for "linear".
+>
+>**"CmL0" : float, optional**
+>>The zero-lift moment coefficient. Defaults to 0.0. Only for "linear".
+>
+>**"Cma" : float, optional**
+>>The moment slope in radians^-1. Defaults to 0.0. Only for "linear".
+>
+>**"CD0" : float, optional**
+>>Constant coefficient in the quadratic fit of the CD/CL curve. Defaults to 0.0. Only for "linear".
+>
+>**"CD1" : float, optional**
+>>Linear coefficient in the quadratic fit of the CD/CL curve. Defaults to 0.0. Only for "linear".
+>
+>**"CD2" : float, optional**
+>>Quadratic coefficient in the quadratic fit of the CD/CL curve. Defaults to 0.0. Only for "linear".
+>
+>**"CL_max" : float, optional**
+>>Maximum lift coefficient. Defaults to infinity. Only for "linear".
