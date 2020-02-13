@@ -10,6 +10,9 @@ import json
 import copy
 import os
 import operator
+from .poly_fits import multivariablePolynomialFit, multivariablePolynomialFunction
+import io
+import sys
 
 class Flap:
     """A class defining a flap. Really just a storage class.
@@ -632,6 +635,10 @@ class Airfoil:
         elif self._type == "database":
             CL = self._get_database_data(0, **kwargs)
 
+        # Fits
+        elif self._type == "poly_fit":
+            CL = self._get_polynomial_data(0, **kwargs)
+
         return CL
 
 
@@ -672,6 +679,10 @@ class Airfoil:
         elif self._type == "database":
             CD = self._get_database_data(1, **kwargs)
 
+        # Fits
+        elif self._type == "poly_fit":
+            CD = self._get_polynomial_data(1, **kwargs)
+
         return CD
 
 
@@ -710,6 +721,10 @@ class Airfoil:
         # Generated/imported database
         elif self._type == "database":
             Cm = self._get_database_data(2, **kwargs)
+
+        # Fits
+        elif self._type == "poly_fit":
+            Cm = self._get_polynomial_data(2, **kwargs)
 
         return Cm
 
@@ -762,7 +777,7 @@ class Airfoil:
             return self._aL0
 
         # Database
-        elif self._type == "database":
+        elif self._type == "database" or self._type == "poly_fit":
 
             # Use secant method in alpha to find a_L0
             # Initialize secant method
@@ -774,7 +789,11 @@ class Airfoil:
             a2 = np.zeros_like(CL1)
 
             # If we're outside the domain of the database, aL0 should be nan
-            a2[np.where(np.isnan(CL1))] = np.nan
+            if a2.size == 1:
+                if np.isnan(CL1):
+                    a2 = np.nan
+            else:
+                a2[np.where(np.isnan(CL1))] = np.nan
             
             # Iterate
             np.seterr(invalid='ignore')
@@ -832,7 +851,7 @@ class Airfoil:
             return self._CLM
 
         # Database
-        elif self._type == "database":
+        elif self._type == "database" or self._type == "poly_fit":
 
             # Check the database is dependent on Mach
             if "Mach" not in self._dof_db_order:
@@ -880,7 +899,7 @@ class Airfoil:
             return self._CLRe
 
         # Database
-        elif self._type == "database":
+        elif self._type == "database" or self._type == "poly_fit":
 
             # Check the database is dependent on Re
             if "Rey" not in self._dof_db_order:
@@ -928,7 +947,7 @@ class Airfoil:
             return self._CLa
 
         # Database
-        elif self._type == "database":
+        elif self._type == "database" or self._type == "poly_fit":
 
             # Check the database is dependent on alpha
             if "alpha" not in self._dof_db_order:
@@ -1728,4 +1747,171 @@ class Airfoil:
         filled_Cm_view = filled_Cm.reshape(N)
         filled_Cm_view[:] = self.get_Cm(**params)
 
-        print(filled_CL)
+        # Huh. Turns out I don't actually need this, so I'm not going to bother developing it further. But I'll keep it here in case it becomes useful
+
+
+    def generate_polynomial_fit(self, CL_degrees={}, CD_degrees={}, Cm_degrees={}, interaction=False):
+        """Generates a set of multivariable polynomials using least-squares regression to approximate the database.
+
+        Parameters
+        ----------
+        CL_degrees : dict, optional
+            Order of fit polynomial for the coefficient of lift for each degree of freedom, formatted as
+
+            {
+                "<DOF1_NAME>" : <ORDER>,
+                "<DOF2_NAME>" : <ORDER>,
+                ...
+            }
+
+            Orders must be integers. Defaults to 1 for any not specified.
+
+        CD_degrees : dict, optional
+            Same as CL_degrees.
+
+        Cm_degrees : dict, optional
+            Same as CL_degrees.
+
+        interaction : bool, optional
+            Whether to include interaction terms in the polynomial fit (i.e.
+            x^2*y). Defaults to False.
+
+        """
+        
+        # Sort fit degrees
+        self._CL_degrees = []
+        self._CD_degrees = []
+        self._Cm_degrees = []
+        for dof in self._dof_db_order:
+            self._CL_degrees.append(CL_degrees.get(dof, 1))
+            self._CD_degrees.append(CD_degrees.get(dof, 1))
+            self._Cm_degrees.append(Cm_degrees.get(dof, 1))
+
+        # Suppress output
+        text_trap = io.StringIO()
+        sys.stdout = text_trap
+
+        # Generate polynomial fit
+        self._CL_poly_coefs, R2_CL = multivariablePolynomialFit(self._CL_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs], interaction=interaction)
+        self._CD_poly_coefs, R2_CD = multivariablePolynomialFit(self._CD_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs+1], interaction=interaction)
+        self._Cm_poly_coefs, R2_Cm = multivariablePolynomialFit(self._Cm_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs+2], interaction=interaction)
+
+        # Reenable output
+        sys.stdout = sys.__stdout__
+
+        # Set type
+        self._type = "poly_fit"
+
+        # Store limits
+        self._dof_limits = []
+        for i in range(self._num_dofs):
+            self._dof_limits.append([np.min(self._data[:,i]), np.max(self._data[:,i])])
+
+
+    def export_polynomial_fits(self, **kwargs):
+        """Save the polynomial fit to a JSON object.
+
+        Parameters
+        ----------
+        filename : str
+            JSON object to write polynomial fit data to.
+
+        """
+
+        # Get filename
+        filename = kwargs.get("filename")
+
+        # Create export dictionary
+        export = {}
+        export["tag"] = "Polynomial fit to database for {0} airfoil.".format(self.name)
+        export["degrees_of_freedom"] = self._dof_db_order
+        export["limits"] = self._dof_limits
+        export["fit_degrees"] = {}
+        export["fit_degrees"]["CL"] = self._CL_degrees
+        export["fit_degrees"]["CD"] = self._CD_degrees
+        export["fit_degrees"]["Cm"] = self._Cm_degrees
+        export["fit_coefs"] = {}
+        export["fit_coefs"]["CL"] = list(self._CL_poly_coefs)
+        export["fit_coefs"]["CD"] = list(self._CD_poly_coefs)
+        export["fit_coefs"]["Cm"] = list(self._Cm_poly_coefs)
+
+        # Export data
+        with open(filename, 'w') as export_file_handle:
+            json.dump(export, export_file_handle, indent=4)
+
+
+    def import_polynomial_fits(self, **kwargs):
+        """Read in polynomial fit data from a JSON object.
+
+        Parameters
+        ----------
+        filename : str
+            JSON object to read polynomial fit data from.
+
+        """
+
+        # Get filename
+        filename = kwargs.get("filename")
+
+        # Read in data
+        with open(filename, 'r') as import_file_handle:
+            input_dict = json.load(import_file_handle)
+
+        # Parse input dict
+        self._dof_db_order = input_dict["degrees_of_freedom"]
+        self._num_dofs = len(self._dof_db_order)
+        self._dof_limits = input_dict["limits"]
+        self._CL_degrees = input_dict["fit_degrees"]["CL"]
+        self._CD_degrees = input_dict["fit_degrees"]["CD"]
+        self._Cm_degrees = input_dict["fit_degrees"]["Cm"]
+        self._CL_poly_coefs = np.array(input_dict["fit_coefs"]["CL"])
+        self._CD_poly_coefs = np.array(input_dict["fit_coefs"]["CD"])
+        self._Cm_poly_coefs = np.array(input_dict["fit_coefs"]["Cm"])
+
+        # Change type
+        self._type = "poly_fit"
+
+
+    def _get_polynomial_data(self, coef_index, **kwargs):
+        # Determines the value of the given coefficient from the polynomial fit
+        # coef_index | coef
+        #   0        |  CL
+        #   1        |  CD
+        #   2        |  Cm
+
+        # Stack up independent vars
+        ind_vars = []
+        N = 1
+        for dof in self._dof_db_order:
+            ind_var = kwargs.get(dof, self._dof_defaults[dof])
+            ind_vars.append(ind_var)
+            if not np.isscalar(ind_var):
+                N = max(N, len(ind_var))
+
+        # Fill any values
+        if N > 1:
+            for i, ind_var in enumerate(ind_vars):
+                if np.isscalar(ind_var):
+                    ind_vars[i] = np.full(N, ind_var)
+
+        # Setup input matrix
+        if N == 1:
+            x = np.array(ind_vars)[np.newaxis,:]
+        else:
+            x = np.array(ind_vars)
+
+        # Get data
+        if coef_index == 0:
+            coef = multivariablePolynomialFunction(self._CL_poly_coefs, self._CL_degrees, x)
+        elif coef_index == 1:
+            coef = multivariablePolynomialFunction(self._CD_poly_coefs, self._CD_degrees, x)
+        elif coef_index == 2:
+            coef = multivariablePolynomialFunction(self._Cm_poly_coefs, self._Cm_degrees, x)
+
+        # Check limits
+        for i in range(N):
+            for j in range(self._num_dofs):
+                if x[j,i] > self._dof_limits[j][1] or x[j,i] < self._dof_limits[j][0]:
+                    coef[i] = np.nan
+
+        return coef

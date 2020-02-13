@@ -50,20 +50,79 @@ degrees_of_freedom = {
 airfoil.import_database(filename="database.txt")
 
 # Check interpolation
-alphas = np.radians(np.linspace(-10, 10, 10))
-flaps = np.radians(np.linspace(10, -10, 10))
-Re = np.linspace(0, 500000, 10)
-CL = airfoil.get_CL(alpha=alphas, trailing_flap=flaps, Rey=Re, Mach=0.1)
-CD = airfoil.get_CD(alpha=alphas, trailing_flap=flaps, Rey=Re, Mach=0.1)
-Cm = airfoil.get_Cm(alpha=alphas, trailing_flap=flaps, Rey=Re, Mach=0.1)
-CLa = airfoil.get_CLRe(alpha=alphas, trailing_flap=flaps, Rey=Re, Mach=0.1)
-aL0 = airfoil.get_aL0(trailing_flap=flaps, Rey=Re, Mach=0.1)
-#aL0 = airfoil.get_aL0(trailing_flap=0.0)
+alphas = np.radians(np.linspace(-10, 10, 100))
+flaps = np.radians(np.linspace(10, -10, 100))
+Re = np.linspace(0, 500000, 100)
+CL_int = airfoil.get_CL(alpha=alphas, trailing_flap=flaps, Rey=Re)
+CD_int = airfoil.get_CD(alpha=alphas, trailing_flap=flaps, Rey=Re)
+Cm_int = airfoil.get_Cm(alpha=alphas, trailing_flap=flaps, Rey=Re)
+CLa_int = airfoil.get_CLRe(alpha=alphas, trailing_flap=flaps, Rey=Re)
+aL0_int = airfoil.get_aL0(trailing_flap=flaps, Rey=Re)
 
-#print(CL)
-#print(CD)
-#print(Cm)
-print(CLa)
-print(aL0)
+print("\n---Raw Interpolation Results---")
+print(CL_int)
+print(CD_int)
+print(Cm_int)
+print(CLa_int)
+print(aL0_int)
 
-airfoil._create_filled_database()
+CL_fit_orders = {
+    "alpha" : 1,
+    "Rey" : 1,
+    "trailing_flap" : 1
+}
+
+CD_fit_orders = {
+    "alpha" : 4,
+    "Rey" : 1,
+    "trailing_flap" : 4
+}
+
+Cm_fit_orders = {
+    "alpha" : 1,
+    "Rey" : 1,
+    "trailing_flap" : 1
+}
+
+#airfoil.generate_polynomial_fit(CL_fit_orders, CD_fit_orders, Cm_fit_orders)
+airfoil.import_polynomial_fits(filename="database.json")
+
+CL_pol = airfoil.get_CL(alpha=alphas, trailing_flap=flaps, Rey=Re)
+CD_pol = airfoil.get_CD(alpha=alphas, trailing_flap=flaps, Rey=Re)
+Cm_pol = airfoil.get_Cm(alpha=alphas, trailing_flap=flaps, Rey=Re)
+CLa_pol = airfoil.get_CLRe(alpha=alphas, trailing_flap=flaps, Rey=Re)
+aL0_pol = airfoil.get_aL0(trailing_flap=flaps, Rey=Re)
+
+print("\n---Polynomial Fit Results---")
+print(CL_pol)
+print(CD_pol)
+print(Cm_pol)
+print(CLa_pol)
+print(aL0_pol)
+
+plt.figure()
+plt.plot(flaps, CL_int, 'xr')
+plt.plot(flaps, CL_pol, 'b-')
+plt.show()
+
+plt.figure()
+plt.plot(flaps, CD_int, 'xr')
+plt.plot(flaps, CD_pol, 'b-')
+plt.show()
+
+plt.figure()
+plt.plot(flaps, Cm_int, 'xr')
+plt.plot(flaps, Cm_pol, 'b-')
+plt.show()
+
+plt.figure()
+plt.plot(flaps, CLa_int, 'xr')
+plt.plot(flaps, CLa_pol, 'b-')
+plt.show()
+
+plt.figure()
+plt.plot(flaps, aL0_int, 'xr')
+plt.plot(flaps, aL0_pol, 'b-')
+plt.show()
+
+airfoil.export_polynomial_fits(filename="database.json")
