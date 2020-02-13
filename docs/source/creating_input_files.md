@@ -8,7 +8,11 @@ The following are keys which can be specified in the scene JSON object. NOTE: al
 The following are keys which can be specified in the airfoil JSON object.
 
 >**"type" : string**
->>The type of information describing the airfoil. Can be "linear" or "database". "linear" airfoils are defined by a linearization of airfoil parameters about the zero-lift angle of attack, with the exception of CD being a quadratic function of CL. All appropriate coefficients and derivatives should then be given. UNITS MAY NOT BE SPECIFIED BY THE USER FOR ANY AIRFOIL PARAMETERS. THESE VALUES MUST BE SPECIFIED IN THE UNITS GIVEN.
+>>The type of information describing the airfoil. Can be "linear", "database", or "poly_fit". "linear" airfoils are defined by a linearization of airfoil parameters about the zero-lift angle of attack, with the exception of CD being a quadratic function of CL. All appropriate coefficients and derivatives should then be given. UNITS MAY NOT BE SPECIFIED BY THE USER FOR ANY AIRFOIL PARAMETERS. THESE VALUES MUST BE SPECIFIED IN THE UNITS GIVEN.
+>>
+>>"database" airfoils are defined by an array of data, that is aerodynamic coefficients, determined at various angles of attack, Reynolds numbers, Mach numbers, and flap deflections. Such a database must be generated using this software. More information, see generate_database(), export_database(), and import_database() in [Airfoil Class](airfoil_class).
+>>
+>>"poly_fit" airfoils are defined by polynomial functions of aerodynamic coefficients as a function of angle of attack, Reynolds number, Mach number, and flap deflection. These fits must be generated using this software. More information, see generate_polynomial_fits(), export_polynomial_fits(), and import_polynomial_fits() in [Airfoil Class](airfoil_class).
 >
 >**"aL0" : float, optional**
 >>The zero-lift angle of attack in radians. Defaults to 0.0. Only for "linear".
