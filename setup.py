@@ -1,11 +1,11 @@
-"""AirfoilDatabase: A python module for creating databases of complex airfoils."""
+"""AirfoilDatabase: A python module for modeling airfoils."""
 
 from setuptools import setup
 import os
 
 setup(name = 'airfoil_db',
     version = '1.0',
-    description = "AirfoilDatabase: A Python module for creating databases of complex airfoils",
+    description = "AirfoilDatabase: A Python module for modeling airfoils",
     url = 'https://github.com/usuaero/AirfoilDatabase',
     author = 'usuaero',
     author_email = 'doug.hunsaker@usu.edu',

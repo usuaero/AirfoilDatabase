@@ -1,2 +1,2 @@
 # Introduction
-This is a software package for creating airfoil databases.
+This is a software package for modelling airfoils (infinite wings). Using this package, you can generate a database of coefficients, create a set of approximating polynomials for the database, calculate coefficients at given conditions, and generate airfoil geometries. It is used extensively in the software [MachUpX](https://www.github.com/usuaero/MachUpX).

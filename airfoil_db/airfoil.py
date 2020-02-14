@@ -863,7 +863,7 @@ class Airfoil:
 
 
     def get_CLM(self, **kwargs):
-        """Returns the lift slope with respect to Mach number
+        """Returns the lift slope with respect to Mach number using a forward-difference approximation.
 
         Parameters
         ----------
@@ -911,7 +911,7 @@ class Airfoil:
 
 
     def get_CLRe(self, **kwargs):
-        """Returns the lift slope with respect to Reynolds number
+        """Returns the lift slope with respect to Reynolds number using a backward-difference approximation.
 
         Parameters
         ----------
@@ -959,7 +959,7 @@ class Airfoil:
 
 
     def get_CLa(self, **kwargs):
-        """Returns the lift slope
+        """Returns the lift slope using a backward-difference approximation.
 
         Parameters
         ----------
@@ -1803,7 +1803,7 @@ class Airfoil:
         # Huh. Turns out I don't actually need this, so I'm not going to bother developing it further. But I'll keep it here in case it becomes useful
 
 
-    def generate_polynomial_fit(self, CL_degrees={}, CD_degrees={}, Cm_degrees={}, interaction=False):
+    def generate_polynomial_fit(self, CL_degrees={}, CD_degrees={}, Cm_degrees={}, interaction=False, update_type=True):
         """Generates a set of multivariable polynomials using least-squares regression to approximate the database.
         Note: This airfoil must have a database already for fits to be created.
 
@@ -1869,7 +1869,7 @@ class Airfoil:
             self._dof_limits.append([np.min(self._data[:,i]), np.max(self._data[:,i])])
 
         # Update type
-        if kwargs.get("update_type", True):
+        if update_type:
             self.set_type("poly_fit")
 
 
@@ -1952,11 +1952,17 @@ class Airfoil:
         ind_vars = []
         N = 1
         for dof in self._dof_db_order:
+
+            # Get independent variable values
             ind_var = kwargs.get(dof, self._dof_defaults[dof])
+            
+            # Check for array of size 1
             if not np.isscalar(ind_var) and len(ind_var) == 1:
                 ind_vars.append(np.asscalar(ind_var))
             else:
                 ind_vars.append(ind_var)
+
+            # Update max size
             if not np.isscalar(ind_var):
                 N = max(N, len(ind_var))
 
