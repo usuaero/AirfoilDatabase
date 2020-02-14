@@ -79,10 +79,52 @@ class Airfoil:
             "trailing_flap" : 0.0
         }
 
+        # Load input file
+        input_file = self._input_dict.get("input_file", None)
+        if input_file is not None:
+            if self._type == "database":
+                self.import_database(filename=input_file)
+            elif self._type == "poly_fit":
+                self.import_polynomial_fits(filename=input_file)
+
 
     def set_verbosity(self, verbosity):
         """Sets the verbosity of the airfoil."""
         self._verbose = verbosity
+
+
+    def set_type(self, database_type):
+        """Determines how the aerodynamic coefficients will be calculated.
+
+        Parameters
+        ----------
+        database_type: str
+            "linear", "database", or "poly_fit". Airfoil will automatically
+            check if it has the necessary to perform the given type of 
+            computation and throw a warning if it does not.
+
+        """
+
+        # Check for linear data
+        if database_type == "linear":
+            if not hasattr(self, "_CLa"):
+                raise RuntimeWarning("Airfoil {0} does not have linear coefficients specified. Reverting to type '{1}' for computations.".format(self.name, self._type))
+            else:
+                self._type = database_type
+
+        # Check for database
+        if database_type == "database":
+            if not hasattr(self, "_data"):
+                raise RuntimeWarning("Airfoil {0} does not have a database of coefficients. Reverting to type '{1}' for computations.".format(self.name, self._type))
+            else:
+                self._type = database_type
+
+        # Check for polynomial fits
+        if database_type == "poly_fit":
+            if not hasattr(self, "_CL_poly_coefs"):
+                raise RuntimeWarning("Airfoil {0} does not have a set of polynomial fits. Reverting to type '{1}' for computations.".format(self.name, self._type))
+            else:
+                self._type = database_type
 
 
     def _load_params(self, airfoil_input):
@@ -1302,6 +1344,9 @@ class Airfoil:
 
         max_iter : int, optional
             Maximum iterations for Xfoil. Defaults to 5000.
+
+        update_type : bool, optional
+            Whether to update the airfoil to use the newly computed database for calculations. Defaults to True.
         """
 
         # Set up lists of independent vars
@@ -1366,6 +1411,10 @@ class Airfoil:
         for i in range(self._num_dofs,-1,-1):
             self._data = self._data[self._data[:,i].argsort(axis=0, kind='stable')] # 'stable' option is necessary to maintain ordering of columns not being actively sorted
 
+        # Update type
+        if kwargs.get("update_type", True):
+            self.set_type("database")
+
 
     def _setup_ind_var(self, input_dict):
         # Sets up a range of independent variables
@@ -1421,6 +1470,9 @@ class Airfoil:
         ----------
         filename : str
             File to import the database from
+
+        update_type : bool, optional
+            Whether to update the airfoil to use the newly imported database for calculations. Defaults to True.
         """
 
         filename = kwargs.get("filename")
@@ -1452,8 +1504,9 @@ class Airfoil:
         dof_sorted = sorted(self._dof_db_cols.items(), key=operator.itemgetter(1))
         self._dof_db_order = [x[0] for x in dof_sorted]
 
-        # Store type
-        self._type = "database"
+        # Update type
+        if kwargs.get("update_type", True):
+            self.set_type("database")
 
 
     def run_xfoil(self, **kwargs):
@@ -1777,6 +1830,9 @@ class Airfoil:
             Whether to include interaction terms in the polynomial fit (i.e.
             x^2*y). Defaults to False.
 
+        update_type : bool, optional
+            Whether to update the airfoil to use the newly computed polynomial fits for calculations. Defaults to True.
+
         """
 
         # Check for database
@@ -1811,6 +1867,10 @@ class Airfoil:
         self._dof_limits = []
         for i in range(self._num_dofs):
             self._dof_limits.append([np.min(self._data[:,i]), np.max(self._data[:,i])])
+
+        # Update type
+        if kwargs.get("update_type", True):
+            self.set_type("poly_fit")
 
 
     def export_polynomial_fits(self, **kwargs):
@@ -1853,6 +1913,9 @@ class Airfoil:
         filename : str
             JSON object to read polynomial fit data from.
 
+        update_type : bool, optional
+            Whether to update the airfoil to use the newly imported polynomial fits for calculations. Defaults to True.
+
         """
 
         # Get filename
@@ -1873,8 +1936,9 @@ class Airfoil:
         self._CD_poly_coefs = np.array(input_dict["fit_coefs"]["CD"])
         self._Cm_poly_coefs = np.array(input_dict["fit_coefs"]["Cm"])
 
-        # Change type
-        self._type = "poly_fit"
+        # Update type
+        if kwargs.get("update_type", True):
+            self.set_type("poly_fit")
 
 
     def _get_polynomial_data(self, coef_index, **kwargs):

@@ -8,6 +8,7 @@ geometry_file = "test/uCRM-9_wr0_xfoil.txt"
 #geometry_file = "test/NACA_0012_geom.txt"
 airfoil_input = {
     "type" : "database",
+    "input_file" : "database.txt",
     "geometry" : {
         "outline_points" : geometry_file,
         "top_first" : True
@@ -47,7 +48,7 @@ degrees_of_freedom = {
 
 #airfoil.generate_database(degrees_of_freedom=degrees_of_freedom, max_iter=100)
 #airfoil.export_database(filename="database.txt")
-airfoil.import_database(filename="database.txt")
+#airfoil.import_database(filename="database.txt")
 
 # Check interpolation
 alphas = np.radians(np.linspace(-10, 10, 100))

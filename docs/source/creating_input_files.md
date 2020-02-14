@@ -14,6 +14,9 @@ The following are keys which can be specified in the airfoil JSON object.
 >>
 >>"poly_fit" airfoils are defined by polynomial functions of aerodynamic coefficients as a function of angle of attack, Reynolds number, Mach number, and flap deflection. These fits must be generated using this software. More information, see generate_polynomial_fits(), export_polynomial_fits(), and import_polynomial_fits() in [Airfoil Class](airfoil_class).
 >
+>**"input_file" : str, optional**
+>>File to read database or fit data from. The file specified here should match the "type" of the airfoil specified.
+>
 >**"geometry" : dict, optional**
 >>Describes the geometry of the airfoil.
 >>
