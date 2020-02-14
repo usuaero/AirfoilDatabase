@@ -1953,7 +1953,10 @@ class Airfoil:
         N = 1
         for dof in self._dof_db_order:
             ind_var = kwargs.get(dof, self._dof_defaults[dof])
-            ind_vars.append(ind_var)
+            if not np.isscalar(ind_var) and len(ind_var) == 1:
+                ind_vars.append(np.asscalar(ind_var))
+            else:
+                ind_vars.append(ind_var)
             if not np.isscalar(ind_var):
                 N = max(N, len(ind_var))
 
@@ -1965,7 +1968,7 @@ class Airfoil:
 
         # Setup input matrix
         if N == 1:
-            x = np.array(ind_vars)[np.newaxis,:]
+            x = np.array(ind_vars)[:,np.newaxis]
         else:
             x = np.array(ind_vars)
 
