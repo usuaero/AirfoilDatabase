@@ -218,7 +218,10 @@ class Airfoil:
 
             # Camber line
             def camber(x):
-                return np.where(x<self._p, self._m/(self._p*self._p)*(2*self._p*x-x*x), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x-x*x))
+                if self._p != 0.0:
+                    return np.where(x<self._p, self._m/(self._p*self._p)*(2*self._p*x-x*x), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x-x*x))
+                else:
+                    return np.zeros_like(x)
 
             self._camber_line = camber
 
@@ -662,10 +665,9 @@ class Airfoil:
             alpha = kwargs.get("alpha", 0.0)
             trailing_flap = kwargs.get("trailing_flap", 0.0)
             trailing_flap_efficiency = kwargs.get("trailing_flap_efficiency", 1.0)
-            aL0 = self.get_aL0(**kwargs)
 
             # Calculate lift coefficient
-            CL = self._CLa*(alpha-aL0+trailing_flap*trailing_flap_efficiency)
+            CL = self._CLa*(alpha-self._aL0+trailing_flap*trailing_flap_efficiency)
             
             # Saturate
             if isinstance(CL, np.ndarray):
