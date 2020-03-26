@@ -8,16 +8,12 @@ geometry_file = "test/uCRM-9_wr0_xfoil.txt"
 #geometry_file = "test/NACA_0012_geom.txt"
 airfoil_input = {
     "type" : "database",
-    "input_file" : "database.txt",
     "geometry" : {
         "outline_points" : geometry_file,
         "top_first" : True
         #"NACA" : "9412"
     },
-    "trailing_flap" : {
-        "type" : "parabolic",
-        "x" : 0.7
-    }
+    "trailing_flap_type" : "parabolic"
 }
 
 airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
@@ -39,26 +35,31 @@ degrees_of_freedom = {
     #    "steps" : 4,
     #    "index" : 3
     #},
-    "trailing_flap" : {
-        "range" : [m.radians(-20.0), m.radians(20.0)],
+    "trailing_flap_deflection" : {
+        "range" : [m.radians(-0.0), m.radians(20.0)],
         "steps" : 5,
         "index" : 0
+    },
+    "trailing_flap_fraction" : {
+        "range" : [0.1, 0.5],
+        "steps" : 3,
+        "index" : 3
     }
 }
 
-#airfoil.generate_database(degrees_of_freedom=degrees_of_freedom, max_iter=100)
-#airfoil.export_database(filename="database.txt")
+airfoil.generate_database(degrees_of_freedom=degrees_of_freedom, max_iter=100, verbose=True, show_xfoil_output=True)
+airfoil.export_database(filename="database.txt")
 #airfoil.import_database(filename="database.txt")
 
 # Check interpolation
 alphas = np.radians(np.linspace(-10, 10, 100))
 flaps = 0.0#np.radians(np.linspace(10, -10, 100))
 Re = 200000#np.linspace(0, 500000, 100)
-CL_int = airfoil.get_CL(alpha=alphas, trailing_flap=flaps, Rey=Re)
-CD_int = airfoil.get_CD(alpha=alphas, trailing_flap=flaps, Rey=Re)
-Cm_int = airfoil.get_Cm(alpha=alphas, trailing_flap=flaps, Rey=Re)
-CLa_int = airfoil.get_CLa(alpha=alphas, trailing_flap=flaps, Rey=Re)
-aL0_int = airfoil.get_aL0(trailing_flap=flaps, Rey=Re)
+CL_int = airfoil.get_CL(alpha=alphas, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=0.2)
+CD_int = airfoil.get_CD(alpha=alphas, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=0.2)
+Cm_int = airfoil.get_Cm(alpha=alphas, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=0.2)
+CLa_int = airfoil.get_CLa(alpha=alphas, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=0.2)
+aL0_int = airfoil.get_aL0(trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=0.2)
 
 print("\n---Raw Interpolation Results---")
 print(CL_int)
@@ -85,8 +86,8 @@ Cm_fit_orders = {
     "trailing_flap" : 1
 }
 
-#airfoil.generate_polynomial_fit(CL_fit_orders, CD_fit_orders, Cm_fit_orders)
-airfoil.import_polynomial_fits(filename="database.json")
+airfoil.generate_polynomial_fit(CL_fit_orders, CD_fit_orders, Cm_fit_orders)
+#airfoil.import_polynomial_fits(filename="database.json")
 
 CL_pol = airfoil.get_CL(alpha=alphas, trailing_flap=flaps, Rey=Re)
 CD_pol = airfoil.get_CD(alpha=alphas, trailing_flap=flaps, Rey=Re)

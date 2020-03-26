@@ -1,7 +1,7 @@
 """A class defining an airfoil."""
 
 import numpy as np
-import math as m
+import math
 import matplotlib.pyplot as plt
 import scipy.interpolate as interp
 import scipy.signal as sig
@@ -13,35 +13,6 @@ import operator
 from .poly_fits import multivariablePolynomialFit, multivariablePolynomialFunction
 import io
 import sys
-
-class Flap:
-    """A class defining a flap. Really just a storage class.
-
-    Parameters
-    ----------
-    loc : str
-        Can be "trailing" or "leading".
-
-    type : str, optional
-        Can be "linear" or "parabolic". Defaults to "linear".
-
-    x : str, optional
-        x location, relative to chord, where the hinge is. Defaults to 1.0.
-
-    y : str, optional
-        y location, relative to chord, where the hinge is. Defaults to 0.0.
-
-    """
-
-    def __init__(self, loc, **kwargs):
-        self.loc = loc
-        self.type = kwargs.get("type", "linear")
-        if self.loc == "trailing":
-            def_x = 1.0
-        else:
-            def_x = 0.0
-        self.x = kwargs.get("x", def_x) # Default behavior is no flap
-        self.y = kwargs.get("y", 0.0)
 
 
 class Airfoil:
@@ -71,12 +42,13 @@ class Airfoil:
         self._initialize_geometry()
 
         # Specify database DOF parameters
-        self._allowable_dofs = ["alpha", "Rey", "Mach", "trailing_flap"]
+        self._allowable_dofs = ["alpha", "Rey", "Mach", "trailing_flap_deflection", "trailing_flap_fraction"]
         self._dof_defaults = {
             "alpha" : 0.0,
             "Rey" : 100000.0,
             "Mach" : 0.0,
-            "trailing_flap" : 0.0
+            "trailing_flap_deflection" : 0.0,
+            "trailing_flap_fraction" : 0.0
         }
 
         # Load input file
@@ -159,7 +131,8 @@ class Airfoil:
 
     def _load_flaps(self):
         # Loads flaps based on the input dict
-        self._trailing_flap = Flap("trailing", **self._input_dict.get("trailing_flap", {}))
+        self._trailing_flap_type = self._input_dict.get("trailing_flap_type", None)
+        self._trailing_flap_hinge_height = self._input_dict.get("trailing_flap_hinge_height", 0.0)
 
 
     def _initialize_geometry(self):
@@ -646,8 +619,11 @@ class Airfoil:
         Mach : float, optional
             Mach number. Defaults to 0.
 
-        trailing_flap : float, optional
+        trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
+
+        trailing_flap_fraction : float, optional
+            Trailing flap fraction of the chord length. Defaults to 0.
 
         trailing_flap_efficiency : float, optional
             Trailing flap efficiency. Defaults to 1.0.
@@ -663,7 +639,7 @@ class Airfoil:
 
             # Get params
             alpha = kwargs.get("alpha", 0.0)
-            trailing_flap = kwargs.get("trailing_flap", 0.0)
+            trailing_flap = kwargs.get("trailing_flap_deflection", 0.0)
             trailing_flap_efficiency = kwargs.get("trailing_flap_efficiency", 1.0)
 
             # Calculate lift coefficient
@@ -701,8 +677,11 @@ class Airfoil:
         Mach : float, optional
             Mach number. Defaults to 0.
 
-        trailing_flap : float, optional
+        trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
+
+        trailing_flap_fraction : float, optional
+            Trailing flap fraction of the chord length. Defaults to 0.
 
         trailing_flap_efficiency : float, optional
             Trailing flap efficiency. Defaults to 1.0.
@@ -745,8 +724,11 @@ class Airfoil:
         Mach : float, optional
             Mach number. Defaults to 0.
 
-        trailing_flap : float, optional
+        trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
+
+        trailing_flap_fraction : float, optional
+            Trailing flap fraction of the chord length. Defaults to 0.
 
         trailing_flap_efficiency : float, optional
             Trailing flap efficiency. Defaults to 1.0.
@@ -807,8 +789,11 @@ class Airfoil:
         Mach : float, optional
             Mach number. Defaults to 0.
 
-        trailing_flap : float, optional
+        trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
+
+        trailing_flap_fraction : float, optional
+            Trailing flap fraction of the chord length. Defaults to 0.
 
         Returns
         -------
@@ -878,8 +863,11 @@ class Airfoil:
         Mach : float, optional
             Mach number. Defaults to 0.
 
-        trailing_flap : float, optional
+        trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
+
+        trailing_flap_fraction : float, optional
+            Trailing flap fraction of the chord length. Defaults to 0.
 
         dx : float
             Step size for finite-difference equation. Defaults to 0.05.
@@ -926,8 +914,11 @@ class Airfoil:
         Mach : float, optional
             Mach number. Defaults to 0.
 
-        trailing_flap : float, optional
+        trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
+
+        trailing_flap_fraction : float, optional
+            Trailing flap fraction of the chord length. Defaults to 0.
 
         dx : float
             Step size for finite-difference equation. Defaults to 1000.
@@ -974,8 +965,11 @@ class Airfoil:
         Mach : float, optional
             Mach number. Defaults to 0.
 
-        trailing_flap : float, optional
+        trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
+
+        trailing_flap_fraction : float, optional
+            Trailing flap fraction of the chord length. Defaults to 0.
 
         dx : float, optional
             Step size for finite-difference equation. Defaults to 0.001 radians.
@@ -1008,7 +1002,7 @@ class Airfoil:
             return (CL1-CL0)/(2*dx)
 
 
-    def get_outline_points(self, N=200, cluster=True, trailing_flap_deflection=0.0, export=None, top_first=True):
+    def get_outline_points(self, N=200, cluster=True, trailing_flap_deflection=0.0, trailing_flap_fraciton=0.0, export=None, top_first=True, close_te=True):
         """Returns an array of outline points showing the geometry of the airfoil.
 
         Parameters
@@ -1022,12 +1016,18 @@ class Airfoil:
         trailing_flap_deflection : float, optional
             Trailing flap deflection in radians (positive down). Defaults to zero.
 
+        trailing_flap_fraction : float, optional
+            Trailing flap fraction of the chord. Defaults to zero.
+
         export : str
             If specified, the outline points will be saved to a file. Defaults to no file.
 
         top_first : bool
             The order of the coordinates when exported. Defaults to going from the trailing edge along the top and
             the around to the bottom.
+
+        clos_te : bool
+            Whether the top and bottom trailing edge points should be forced to be equal.
 
         Returns
         -------
@@ -1038,8 +1038,8 @@ class Airfoil:
         # Check the geometry has been defined
         if self.geom_specification != "none":
 
-            # Case with no deflection
-            if trailing_flap_deflection == 0.0:
+            # Case with no deflection or flap at all
+            if trailing_flap_deflection == 0.0 or trailing_flap_fraciton == 0.0:
 
                 # Determine spacing of points
                 if cluster:
@@ -1065,8 +1065,8 @@ class Airfoil:
 
                 # Get flap parameters
                 df = trailing_flap_deflection
-                x_f = self._trailing_flap.x
-                y_f = self._trailing_flap.y
+                x_f = 1.0-trailing_flap_fraciton
+                y_f = self._trailing_flap_hinge_height
 
                 # Get undeformed camber points
                 if cluster:
@@ -1084,7 +1084,7 @@ class Airfoil:
                 flap_ind = np.where(x_c>x_f)
 
                 # Linear flap
-                if self._trailing_flap.type == "linear":
+                if self._trailing_flap_type == "linear":
                     
                     # Calculate deflected camber line Eqs. (8-10) in "Geometry and Aerodynamic Performance of Parabolic..." by Hunsaker, et al. 2018
                     r = np.sqrt((y_c-y_f)*(y_c-y_f)+(x_c-x_f)*(x_c-x_f))
@@ -1093,7 +1093,7 @@ class Airfoil:
                     y_c[flap_ind] = y_f-(r*np.sin(df-psi))[flap_ind]
 
                 # Parabolic flap from "Geometry and Aerodynamic Performance of Parabolic..." by Hunsaker, et al. 2018
-                else:
+                elif self._trailing_flap_type == "parabolic":
 
                     # Calculate the neutral line parameters
                     l_n = np.sqrt(y_f*y_f+(1-x_f)*(1-x_f))
@@ -1143,6 +1143,9 @@ class Airfoil:
                     x_c[flap_ind] = x_p+dy_c*np.sin(C)
                     y_c[flap_ind] = y_p+dy_c*np.cos(C)
 
+                else:
+                    raise IOError("{0} is not an allowable flap type.".format(self._trailing_flap_type))
+
                 # Calculate camber line gradient
                 dyc_dx = np.gradient(y_c, x_c, edge_order=2)
 
@@ -1170,7 +1173,7 @@ class Airfoil:
                     X_b, Y_b = self._fill_surface(X_b, Y_b, x_f, y_f, r_b)
 
                 # Make sure the trailing edge is sealed
-                if self._get_cart_dist(X_t[-1], Y_t[-1], X_b[-1], Y_b[-1]) > 1e-3:
+                if close_te and self._get_cart_dist(X_t[-1], Y_t[-1], X_b[-1], Y_b[-1]) > 1e-3:
                     X_t = np.concatenate([X_t, X_b[-1][np.newaxis]])
                     Y_t = np.concatenate([Y_t, Y_b[-1][np.newaxis]])
 
@@ -1178,13 +1181,13 @@ class Airfoil:
                 X = np.concatenate([X_t[::-1], X_b])
                 Y = np.concatenate([Y_t[::-1], Y_b])
 
-                # Plot result
-                if False:
-                    plt.figure()
-                    plt.plot(X, Y)
-                    plt.plot(x_f, y_f, 'rx')
-                    plt.gca().set_aspect('equal', adjustable='box')
-                    plt.show()
+            # Plot result
+            if True:
+                plt.figure()
+                plt.plot(X, Y)
+                #plt.plot(x_f, y_f, 'rx')
+                plt.gca().set_aspect('equal', adjustable='box')
+                plt.show()
 
             # Concatenate x and y
             outline_points = np.concatenate([X[:,np.newaxis], Y[:,np.newaxis]], axis=1)
@@ -1244,8 +1247,8 @@ class Airfoil:
             return X, Y
 
         # Get angles from the hinge point to the start and stop points
-        theta0 = m.atan2(Y[fill_start]-y_h, X[fill_start]-x_h)
-        theta1 = m.atan2(Y[fill_stop]-y_h, X[fill_stop]-x_h)
+        theta0 = math.atan2(Y[fill_start]-y_h, X[fill_start]-x_h)
+        theta1 = math.atan2(Y[fill_stop]-y_h, X[fill_stop]-x_h)
 
         # Find fill in points
         theta_fill = (theta1+theta0)/2.0
@@ -1268,7 +1271,7 @@ class Airfoil:
             s3 = 1.0
 
         # Get Golden ratio
-        R = 2.0/(1.0+m.sqrt(5.0))
+        R = 2.0/(1.0+math.sqrt(5.0))
 
         # Loop until interval converges
         while abs(s0-s3)>1e-10:
@@ -1300,7 +1303,7 @@ class Airfoil:
     def _get_cart_dist(self, x0, y0, x1, y1):
         x_diff = x0-x1
         y_diff = y0-y1
-        return m.sqrt(x_diff*x_diff+y_diff*y_diff)
+        return math.sqrt(x_diff*x_diff+y_diff*y_diff)
 
 
     def generate_database(self, **kwargs):
@@ -1315,7 +1318,8 @@ class Airfoil:
                 "alpha"
                 "Rey"
                 "Mach"
-                "trailing_flap"
+                "trailing_flap_deflection"
+                "trailing_flap_fraction"
 
             Each key should be one of these degrees of freedom. The value should then be a dictionary 
             describing how that DOF should be perturbed. The following keys must be specified:
@@ -1334,9 +1338,11 @@ class Airfoil:
                 "alpha" : 0.0
                 "Rey" : 100000.0
                 "Mach" : 0.0
-                "trailing_flap" : 0.0
+                "trailing_flap_deflection" : 0.0
+                "trailing_flap_fraction" : 0.0
 
             Please note that all angular degreees of freedom are in radians, rather than degrees.
+
             If "steps" is 1, this variable will be constant for all Xfoil runs and will not be considered as
             an independent variable for the purpose of database generation. In this case, "index" should not be
             specified and the values in "range" should be the same.
@@ -1349,12 +1355,17 @@ class Airfoil:
 
         update_type : bool, optional
             Whether to update the airfoil to use the newly computed database for calculations. Defaults to True.
+
+        show_xfoil_output : bool, optional
+            Display whatever Xfoil prints out. Defaults to False.
+
+        verbose : bool, optional
         """
 
         # Set up lists of independent vars
         xfoil_args = {}
         self._dof_db_cols = {}
-        for dof, params in kwargs.get("degrees_of_freedom", {}).items():
+        for dof, params in kwargs.pop("degrees_of_freedom", {}).items():
             if dof not in self._allowable_dofs:
                 raise IOError("{0} is not an allowable DOF.".format(dof))
             vals, column_index = self._setup_ind_var(params)
@@ -1364,9 +1375,10 @@ class Airfoil:
         # Get other args
         N = kwargs.get("N", 200)
         max_iter = kwargs.get("max_iter", 5000)
+        verbose = kwargs.get("verbose", False)
 
         # Get coefficients
-        CL, CD, Cm = self.run_xfoil(**xfoil_args, N=N, max_iter=max_iter)
+        CL, CD, Cm = self.run_xfoil(**xfoil_args, **kwargs)
 
         # Determine the rows and cols in the database; each independent var and coefficient is a column to be iterpolated using scipy.interpolate.griddata
         self._num_dofs = len(list(self._dof_db_cols.keys()))
@@ -1384,29 +1396,32 @@ class Airfoil:
             for j in range(coef_shape[1]):
                 for k in range(coef_shape[2]):
                     for l in range(coef_shape[3]):
+                        for m in range(coef_shape[4]):
 
-                        # Check for nan
-                        if np.isnan(CL[i,j,k,l]):
-                            continue
+                            # Check for nan
+                            if np.isnan(CL[i,j,k,l,m]):
+                                continue
 
-                        # Append independent vars to database
-                        for m, dof in enumerate(self._dof_db_order):
-                            if dof == "alpha":
-                                ind = i
-                            elif dof == "Rey":
-                                ind = j
-                            elif dof == "Mach":
-                                ind = k
-                            else:
-                                ind = l
-                            self._data[database_row,m] = xfoil_args[dof][ind]
+                            # Append independent vars to database
+                            for n, dof in enumerate(self._dof_db_order):
+                                if dof == "alpha":
+                                    ind = i
+                                elif dof == "Rey":
+                                    ind = j
+                                elif dof == "Mach":
+                                    ind = k
+                                elif dof == "trailing_flap_deflection":
+                                    ind = l
+                                else:
+                                    ind = m
+                                self._data[database_row,n] = xfoil_args[dof][ind]
                         
-                        # Append coefficients
-                        self._data[database_row,self._num_dofs] = CL[i,j,k,l]
-                        self._data[database_row,self._num_dofs+1] = CD[i,j,k,l]
-                        self._data[database_row,self._num_dofs+2] = Cm[i,j,k,l]
+                            # Append coefficients
+                            self._data[database_row,self._num_dofs] = CL[i,j,k,l,m]
+                            self._data[database_row,self._num_dofs+1] = CD[i,j,k,l,m]
+                            self._data[database_row,self._num_dofs+2] = Cm[i,j,k,l,m]
 
-                        database_row += 1
+                            database_row += 1
 
         # Sort by columns so the first column is perfectly in order
         dtype = ",".join(['i8' for i in range(num_cols)])
@@ -1525,15 +1540,23 @@ class Airfoil:
         Mach : float or list of float
             Mach number(s) to calculate the coefficients at. Defaults to 0.0.
 
-        trailing_flap : float or list of float
+        trailing_flap_deflection : float or list of float
             Flap deflection(s) to calculate the coefficients at in radians. Defaults to 0.0.
+
+        trailing_flap_fraction : float or list of float
+            Flap fraction(s) to calculate the coefficients at in radians. Defaults to 0.0.
 
         N : int, optional
             Number of panels for Xfoil to use. Defaults to 200.
 
         max_iter : int, optional
             Maximum iterations for Xfoil. Defaults to 5000.
-        
+
+        show_xfoil_output : bool, optional
+            Display whatever Xfoil outputs from the command line interface. Defaults to False.
+
+        verbose : bool, optional
+
         Returns
         -------
         CL : ndarray
@@ -1547,6 +1570,8 @@ class Airfoil:
         """
         N = kwargs.get("N", 200)
         max_iter = kwargs.get("max_iter", 5000) # We really want this to converge...
+        verbose = kwargs.get("verbose", False)
+        show_xfoil_output = kwargs.get("show_xfoil_output", False)
 
         # Get states
         # Angle of attack
@@ -1568,15 +1593,21 @@ class Airfoil:
         third_dim = len(Machs)
 
         # Flap deflections
-        delta_fts = kwargs.get("trailing_flap", [self._dof_defaults["trailing_flap"]])
+        delta_fts = kwargs.get("trailing_flap_deflection", [self._dof_defaults["trailing_flap_deflection"]])
         if isinstance(delta_fts, float):
             delta_fts = [delta_fts]
         fourth_dim = len(delta_fts)
 
+        # Flap fractions
+        c_fts = kwargs.get("trailing_flap_fraction", [self._dof_defaults["trailing_flap_fraction"]])
+        if isinstance(c_fts, float):
+            c_fts = [c_fts]
+        fifth_dim = len(c_fts)
+
         # Initialize coefficient arrays
-        CL = np.empty((first_dim, second_dim, third_dim, fourth_dim))
-        CD = np.empty((first_dim, second_dim, third_dim, fourth_dim))
-        Cm = np.empty((first_dim, second_dim, third_dim, fourth_dim))
+        CL = np.empty((first_dim, second_dim, third_dim, fourth_dim, fifth_dim))
+        CD = np.empty((first_dim, second_dim, third_dim, fourth_dim, fifth_dim))
+        Cm = np.empty((first_dim, second_dim, third_dim, fourth_dim, fifth_dim))
         CL[:] = np.nan
         CD[:] = np.nan
         Cm[:] = np.nan
@@ -1588,72 +1619,92 @@ class Airfoil:
                 sp.call(['rm', item])
 
 
-        # Loop through flap deflections
+        # Loop through flap deflections and fractions
+        if verbose:
+            print("Running Xfoil")
+            print("{0:>25}{1:>25}{2:>25}".format("Percent Complete", "Flap Deflection [deg]", "Flap Fraction"))
+            print(''.join(['-']*75))
+
         for l, delta_ft in enumerate(delta_fts):
-            pacc_files = []
+            for m, c_ft in enumerate(c_fts):
+                pacc_files = []
+
+                # Display update
+                if verbose:
+                    percent_complete = round((l*len(delta_fts)+m)/(len(delta_fts)*len(c_fts))*100, 1)
+                    print("{0:>24}%{1:>25}{2:>25}".format(percent_complete, math.degrees(delta_ft), c_ft))
             
-            # Export geometry
-            geom_file = os.path.abspath("xfoil_geom_{0:1.6f}.geom".format(delta_ft))
-            self.get_outline_points(N=N, trailing_flap_deflection=delta_ft, export=geom_file)
+                # Export geometry
+                geom_file = "a_{0:1.6f}_{1:1.6f}.geom".format(delta_ft, c_ft)
+                #geom_file = os.path.abspath("xfoil_geom_{0:1.6f}.geom".format(delta_ft))
+                self.get_outline_points(N=N, trailing_flap_deflection=delta_ft, trailing_flap_fraciton=c_ft, export=geom_file, close_te=False)
 
-            # Initialize xfoil execution
-            with sp.Popen(['xfoil'], stdin=sp.PIPE, stdout=sp.PIPE) as xfoil_process:
+                # Initialize xfoil execution
+                with sp.Popen(['xfoil'], stdin=sp.PIPE, stdout=sp.PIPE) as xfoil_process:
 
-                commands = []
+                    commands = []
 
-                # Read in geometry
-                commands += ['LOAD {0}'.format(geom_file),
-                             '{0}_{1:.3E}'.format(self.name, delta_ft)]
+                    # Read in geometry
+                    commands += ['LOAD {0}'.format(geom_file),
+                                 '{0}_{1:.3E}'.format(self.name, delta_ft)]
 
-                # Set viscous mode
-                commands += ['OPER',
-                             'VISC',
-                             '',
-                             '']
-                pacc_index = 0
+                    # Set panelling ratio and let Xfoil makes its own panels
+                    commands += ['PPAR',
+                                 'N {0}'.format(N),
+                                 'T 1',
+                                 '',
+                                 '']
 
-                # Loop through Mach and Reynolds number
-                for Re in Reys:
-                    for M in Machs:
+                    # Set viscous mode
+                    commands += ['OPER',
+                                 'VISC',
+                                 '',
+                                 '']
+                    pacc_index = 0
 
-                        # Polar accumulation file
-                        file_id = str(np.random.randint(0, 10000))
-                        pacc_file = "xfoil_results_{0}.pacc".format(file_id)
-                        pacc_files.append(pacc_file)
+                    # Loop through Mach and Reynolds number
+                    for Re in Reys:
+                        for M in Machs:
 
-                        # Set up commands
-                        commands += ['OPER',
-                                    'RE',
-                                    str(Re),
-                                    'MACH',
-                                    str(M),
-                                    'ITER {0}'.format(max_iter),
-                                    'PACC',
-                                    pacc_file,
-                                    '']
+                            # Polar accumulation file
+                            file_id = str(np.random.randint(0, 10000))
+                            pacc_file = "xfoil_results_{0}.pacc".format(file_id)
+                            pacc_files.append(pacc_file)
 
-                        # Loop through alphas
-                        for a in alphas:
-                            commands.append('ALFA {0:1.6f}'.format(m.degrees(a)))
+                            # Set up commands
+                            commands += ['OPER',
+                                        'RE',
+                                        str(Re),
+                                        'MACH',
+                                        str(M),
+                                        'ITER {0}'.format(max_iter),
+                                        'PACC',
+                                        pacc_file,
+                                        '']
 
-                        # End polar accumulation
-                        commands += ['PACC {0}'.format(pacc_index),
-                                     '']
-                        pacc_index += 1
+                            # Loop through alphas
+                            for a in alphas:
+                                commands.append('ALFA {0:1.6f}'.format(math.degrees(a)))
 
-                # Finish commands
-                commands += ['',
-                             'QUIT']
+                            # End polar accumulation
+                            commands += ['PACC {0}'.format(pacc_index),
+                                         '']
+                            pacc_index += 1
 
-                # Run Xfoil
-                xfoil_input = '\r'.join(commands).encode('utf-8')
-                response = xfoil_process.communicate(xfoil_input)
+                    # Finish commands
+                    commands += ['',
+                                 'QUIT']
 
-                # Show output
-                if self._verbose:
-                    print(response[0].decode('utf-8'))
-                    if response[1] is not None:
-                        print(response[1].decode('utf-8'))
+                    # Run Xfoil
+                    print('\n'.join(commands))
+                    xfoil_input = '\r'.join(commands).encode('utf-8')
+                    response = xfoil_process.communicate(xfoil_input)
+
+                    # Show output
+                    if show_xfoil_output:
+                        print(response[0].decode('utf-8'))
+                        if response[1] is not None:
+                            print(response[1].decode('utf-8'))
 
             # Clean up geometry
             sp.call(['rm', geom_file])
@@ -1680,20 +1731,20 @@ class Airfoil:
                     # Line up with our original independent alpha, as Xfoil does not output a non-converged result
                     i_true = min(range(len(alphas)), key=lambda i: abs(alphas[i]-alpha))
 
-                    CL[i_true,j,k,l] = CL_i[i_iter]
-                    CD[i_true,j,k,l] = CD_i[i_iter]
-                    Cm[i_true,j,k,l] = Cm_i[i_iter]
+                    CL[i_true,j,k,l,m] = CL_i[i_iter]
+                    CD[i_true,j,k,l,m] = CD_i[i_iter]
+                    Cm[i_true,j,k,l,m] = Cm_i[i_iter]
 
                 # Interpolate missing values
                 for i, alpha in enumerate(alpha_i):
-                    if np.isnan(CL[i,j,k,l]): # Result did not converge
+                    if np.isnan(CL[i,j,k,l,m]): # Result did not converge
 
                         # Mid-value
                         if i != 0 and i != len(alpha_i)-1:
                             weight = (alpha_i[i+1]-alpha)/(alpha_i[i+1]-alpha_i[i-1])
-                            CL[i,j,k,l] = CL[i-1,j,k,l]*(1-weight)+CL[i+1,j,k,l]*weight
-                            CD[i,j,k,l] = CD[i-1,j,k,l]*(1-weight)+CD[i+1,j,k,l]*weight
-                            Cm[i,j,k,l] = Cm[i-1,j,k,l]*(1-weight)+Cm[i+1,j,k,l]*weight
+                            CL[i,j,k,l,m] = CL[i-1,j,k,l,m]*(1-weight)+CL[i+1,j,k,l,m]*weight
+                            CD[i,j,k,l,m] = CD[i-1,j,k,l,m]*(1-weight)+CD[i+1,j,k,l,m]*weight
+                            Cm[i,j,k,l,m] = Cm[i-1,j,k,l,m]*(1-weight)+Cm[i+1,j,k,l,m]*weight
 
                 # Clean up polar files
                 sp.call(['rm', filename])
@@ -1752,7 +1803,7 @@ class Airfoil:
             Cm = []
             for line in lines[12:]:
                 split_line = line.split()
-                alpha.append(m.radians(float(split_line[0])))
+                alpha.append(math.radians(float(split_line[0])))
                 CL.append(float(split_line[1]))
                 CD.append(float(split_line[2]))
                 Cm.append(float(split_line[4]))
