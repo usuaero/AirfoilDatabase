@@ -1002,7 +1002,7 @@ class Airfoil:
             return (CL1-CL0)/(2*dx)
 
 
-    def get_outline_points(self, N=200, cluster=True, trailing_flap_deflection=0.0, trailing_flap_fraciton=0.0, export=None, top_first=True, close_te=True):
+    def get_outline_points(self, N=200, cluster=True, trailing_flap_deflection=0.0, trailing_flap_fraction=0.0, export=None, top_first=True, close_te=True):
         """Returns an array of outline points showing the geometry of the airfoil.
 
         Parameters
@@ -1039,7 +1039,7 @@ class Airfoil:
         if self.geom_specification != "none":
 
             # Case with no deflection or flap at all
-            if trailing_flap_deflection == 0.0 or trailing_flap_fraciton == 0.0:
+            if trailing_flap_deflection == 0.0 or trailing_flap_fraction == 0.0:
 
                 # Determine spacing of points
                 if cluster:
@@ -1065,7 +1065,7 @@ class Airfoil:
 
                 # Get flap parameters
                 df = trailing_flap_deflection
-                x_f = 1.0-trailing_flap_fraciton
+                x_f = 1.0-trailing_flap_fraction
                 y_f = self._trailing_flap_hinge_height
 
                 # Get undeformed camber points
@@ -1182,7 +1182,7 @@ class Airfoil:
                 Y = np.concatenate([Y_t[::-1], Y_b])
 
             # Plot result
-            if True:
+            if False:
                 plt.figure()
                 plt.plot(X, Y)
                 #plt.plot(x_f, y_f, 'rx')
@@ -1637,7 +1637,7 @@ class Airfoil:
                 # Export geometry
                 geom_file = "a_{0:1.6f}_{1:1.6f}.geom".format(delta_ft, c_ft)
                 #geom_file = os.path.abspath("xfoil_geom_{0:1.6f}.geom".format(delta_ft))
-                self.get_outline_points(N=N, trailing_flap_deflection=delta_ft, trailing_flap_fraciton=c_ft, export=geom_file, close_te=False)
+                self.get_outline_points(N=N, trailing_flap_deflection=delta_ft, trailing_flap_fraction=c_ft, export=geom_file, close_te=False)
 
                 # Initialize xfoil execution
                 with sp.Popen(['xfoil'], stdin=sp.PIPE, stdout=sp.PIPE) as xfoil_process:
