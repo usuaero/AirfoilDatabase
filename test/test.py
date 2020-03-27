@@ -37,17 +37,17 @@ degrees_of_freedom = {
     #},
     "trailing_flap_deflection" : {
         "range" : [m.radians(-20.0), m.radians(20.0)],
-        "steps" : 6,
+        "steps" : 7,
         "index" : 0
     },
     "trailing_flap_fraction" : {
         "range" : [0.1, 0.5],
-        "steps" : 3,
+        "steps" : 4,
         "index" : 3
     }
 }
 
-airfoil.generate_database(degrees_of_freedom=degrees_of_freedom, max_iter=10, verbose=True, show_xfoil_output=True)
+airfoil.generate_database(degrees_of_freedom=degrees_of_freedom, max_iter=100, verbose=True, show_xfoil_output=False)
 airfoil.export_database(filename="database.txt")
 #airfoil.import_database(filename="database.txt")
 

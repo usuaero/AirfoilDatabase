@@ -1008,7 +1008,8 @@ class Airfoil:
         Parameters
         ----------
         N : int
-            The number of outline points to return. Defaults to 200.
+            The number of outline points to return. This function will not always return exactly this many
+            but never more. Defaults to 200.
 
         cluster : bool
             Whether to cluster points about the leading and trailing edges. Defaults to True.
@@ -1051,7 +1052,9 @@ class Airfoil:
                     theta_t = np.linspace(0.0, np.pi, N_t)
                     s_t = 0.5*(1-np.cos(theta_t))*self._s_le
                     theta_b = np.linspace(0.0, np.pi, N_b)
-                    s_b = 0.5*(1-np.cos(theta_b))*(1-self._s_le)+self._s_le
+                    s_b = 0.5*(1-np.cos(theta_b))*(1-self._s_le-0.000001)+self._s_le+0.000001
+                    # I tack on the miniscule offset to keep it from generating 2 points at exactly the
+                    # leading edge. Xfoil seems to not like that...
                     s = np.concatenate([s_t, s_b])
                 else:
                     s = np.linspace(0.0, 1.0, N)
@@ -1160,17 +1163,17 @@ class Airfoil:
                 _, y_h_b, r_b = self._get_closest_point_on_surface(x_f, y_f, "bottom")
 
                 # Trim overlapping points off of both surfaces
-                X_b, Y_b = self._trim_surface(X_b, Y_b, "forward")
-                X_t, Y_t = self._trim_surface(X_t, Y_t, "forward")
+                X_b, Y_b, num_trimmed_from_bot = self._trim_surface(X_b, Y_b, "forward")
+                X_t, Y_t, num_trimmed_from_top = self._trim_surface(X_t, Y_t, "forward")
 
                 # Check if we need to fill anything in
                 fill_top = (df > 0 and y_f < y_h_t) or (df < 0 and y_f > y_h_t)
                 if fill_top:
-                    X_t, Y_t = self._fill_surface(X_t, Y_t, x_f, y_f, r_t)
+                    X_t, Y_t = self._fill_surface(X_t, Y_t, x_f, y_f, r_t, num_trimmed_from_top)
 
                 fill_bot = (df > 0 and y_f < y_h_b) or (df < 0 and y_f > y_h_b)
                 if fill_bot:
-                    X_b, Y_b = self._fill_surface(X_b, Y_b, x_f, y_f, r_b)
+                    X_b, Y_b = self._fill_surface(X_b, Y_b, x_f, y_f, r_b, num_trimmed_from_bot)
 
                 # Make sure the trailing edge is sealed
                 if close_te and self._get_cart_dist(X_t[-1], Y_t[-1], X_b[-1], Y_b[-1]) > 1e-3:
@@ -1196,7 +1199,7 @@ class Airfoil:
                     
             # Save to file
             if export is not None:
-                np.savetxt(export, outline_points, fmt='%10.5f')
+                np.savetxt(export, outline_points, fmt='%10.8f')
 
             return outline_points
 
@@ -1229,11 +1232,11 @@ class Airfoil:
             if last_x_before_break is not None and X[i] < last_x_before_break:
                 trim_indices.append(i)
 
-        return np.delete(X, trim_indices), np.delete(Y, trim_indices)
+        return np.delete(X, trim_indices), np.delete(Y, trim_indices), len(trim_indices)
 
 
-    def _fill_surface(self, X, Y, x_h, y_h, r):
-        # Fills in points along the arc defined by x_h, y_h, and r
+    def _fill_surface(self, X, Y, x_h, y_h, r, num_points):
+        # Fills in num_points along the arc defined by x_h, y_h, and r
 
         # Find the two points we need to fill in between
         for i in range(X.shape[0]):
@@ -1250,8 +1253,12 @@ class Airfoil:
         theta0 = math.atan2(Y[fill_start]-y_h, X[fill_start]-x_h)
         theta1 = math.atan2(Y[fill_stop]-y_h, X[fill_stop]-x_h)
 
+        # Make sure we're actually going to fill in points
+        if num_points < 1:
+            num_points = 1
+
         # Find fill in points
-        theta_fill = (theta1+theta0)/2.0
+        theta_fill = np.linspace(theta0, theta1, num_points+2)[1:-2]
         x_fill = x_h+r*np.cos(theta_fill)
         y_fill = y_h+r*np.sin(theta_fill)
 
@@ -1372,11 +1379,6 @@ class Airfoil:
             xfoil_args[dof] = vals
             self._dof_db_cols[dof] = column_index
 
-        # Get other args
-        N = kwargs.get("N", 200)
-        max_iter = kwargs.get("max_iter", 5000)
-        verbose = kwargs.get("verbose", False)
-
         # Get coefficients
         CL, CD, Cm = self.run_xfoil(**xfoil_args, **kwargs)
 
@@ -1465,17 +1467,17 @@ class Airfoil:
 
             # Add degrees of freedom
             for dof in sorted(self._dof_db_cols.items(), key=operator.itemgetter(1)):
-                header.append("{:>20s}".format(dof[0]))
+                header.append("{:<25s}".format(dof[0]))
 
             # Add coefficients
-            header.append("{:>20s}".format('CL'))
-            header.append("{:>20s}".format('CD'))
-            header.append("{:>20s}".format('Cm'))
+            header.append("{:<25s}".format('CL'))
+            header.append("{:<25s}".format('CD'))
+            header.append("{:<25s}".format('Cm'))
             header = " ".join(header)
 
             # Export
             with open(filename, 'w') as db_file:
-                np.savetxt(db_file, self._data, '%20.10E', header=header)
+                np.savetxt(db_file, self._data, '%25.10E', header=header)
         else:
             raise RuntimeError("No database has been generated for airfoil {0}. Please create a database before exporting.".format(self.name))
 
@@ -1570,7 +1572,7 @@ class Airfoil:
         """
         N = kwargs.get("N", 200)
         max_iter = kwargs.get("max_iter", 5000) # We really want this to converge...
-        verbose = kwargs.get("verbose", False)
+        verbose = kwargs.get("verbose", True)
         show_xfoil_output = kwargs.get("show_xfoil_output", False)
 
         # Get states
@@ -1625,13 +1627,15 @@ class Airfoil:
             print("{0:>25}{1:>25}{2:>25}".format("Percent Complete", "Flap Deflection [deg]", "Flap Fraction"))
             print(''.join(['-']*75))
 
+
+        num_xfoil_runs = fourth_dim*fifth_dim
         for l, delta_ft in enumerate(delta_fts):
             for m, c_ft in enumerate(c_fts):
                 pacc_files = []
 
                 # Display update
                 if verbose:
-                    percent_complete = round((l*len(delta_fts)+m)/(len(delta_fts)*len(c_fts))*100, 1)
+                    percent_complete = round((l*fifth_dim+m)/(num_xfoil_runs)*100)
                     print("{0:>24}%{1:>25}{2:>25}".format(percent_complete, math.degrees(delta_ft), c_ft))
             
                 # Export geometry
@@ -1650,8 +1654,10 @@ class Airfoil:
 
                     # Set panelling ratio and let Xfoil makes its own panels
                     commands += ['PPAR',
-                                 'N {0}'.format(N),
-                                 'T 1',
+                                 'N',
+                                 '{0}'.format(N),
+                                 'T',
+                                 '1',
                                  '',
                                  '']
 
@@ -1696,7 +1702,6 @@ class Airfoil:
                                  'QUIT']
 
                     # Run Xfoil
-                    print('\n'.join(commands))
                     xfoil_input = '\r'.join(commands).encode('utf-8')
                     response = xfoil_process.communicate(xfoil_input)
 
@@ -1706,48 +1711,48 @@ class Airfoil:
                         if response[1] is not None:
                             print(response[1].decode('utf-8'))
 
-            # Clean up geometry
-            sp.call(['rm', geom_file])
+                # Clean up geometry
+                sp.call(['rm', geom_file])
 
-            # Read in files and store arrays
-            for filename in pacc_files:
+                # Read in files and store arrays
+                for filename in pacc_files:
 
-                # Read in file
-                try:
-                    alpha_i, CL_i, CD_i, Cm_i, Re_i, M_i = self.read_pacc_file(filename)
-                except FileNotFoundError:
-                    raise RuntimeWarning("Couldn't find results file {0}. Usually an indication of Xfoil crashing.".format(filename))
-                    continue
+                    # Read in file
+                    try:
+                        alpha_i, CL_i, CD_i, Cm_i, Re_i, M_i = self.read_pacc_file(filename)
+                    except FileNotFoundError:
+                        raise RuntimeWarning("Couldn't find results file {0}. Usually an indication of Xfoil crashing.".format(filename))
+                        continue
 
-                # Determine the Reynolds and Mach indices
-                j = min(range(len(Reys)), key=lambda i: abs(Reys[i]-Re_i))
+                    # Determine the Reynolds and Mach indices
+                    j = min(range(len(Reys)), key=lambda i: abs(Reys[i]-Re_i))
 
-                k = min(range(len(Machs)), key=lambda i: abs(Machs[i]-M_i))
+                    k = min(range(len(Machs)), key=lambda i: abs(Machs[i]-M_i))
 
-                # Loop through alphas
-                i_true = 0
-                for i_iter, alpha in enumerate(alpha_i):
+                    # Loop through alphas
+                    i_true = 0
+                    for i_iter, alpha in enumerate(alpha_i):
 
-                    # Line up with our original independent alpha, as Xfoil does not output a non-converged result
-                    i_true = min(range(len(alphas)), key=lambda i: abs(alphas[i]-alpha))
+                        # Line up with our original independent alpha, as Xfoil does not output a non-converged result
+                        i_true = min(range(len(alphas)), key=lambda i: abs(alphas[i]-alpha))
 
-                    CL[i_true,j,k,l,m] = CL_i[i_iter]
-                    CD[i_true,j,k,l,m] = CD_i[i_iter]
-                    Cm[i_true,j,k,l,m] = Cm_i[i_iter]
+                        CL[i_true,j,k,l,m] = CL_i[i_iter]
+                        CD[i_true,j,k,l,m] = CD_i[i_iter]
+                        Cm[i_true,j,k,l,m] = Cm_i[i_iter]
 
-                # Interpolate missing values
-                for i, alpha in enumerate(alpha_i):
-                    if np.isnan(CL[i,j,k,l,m]): # Result did not converge
+                    # Interpolate missing values
+                    for i, alpha in enumerate(alpha_i):
+                        if np.isnan(CL[i,j,k,l,m]): # Result did not converge
 
-                        # Mid-value
-                        if i != 0 and i != len(alpha_i)-1:
-                            weight = (alpha_i[i+1]-alpha)/(alpha_i[i+1]-alpha_i[i-1])
-                            CL[i,j,k,l,m] = CL[i-1,j,k,l,m]*(1-weight)+CL[i+1,j,k,l,m]*weight
-                            CD[i,j,k,l,m] = CD[i-1,j,k,l,m]*(1-weight)+CD[i+1,j,k,l,m]*weight
-                            Cm[i,j,k,l,m] = Cm[i-1,j,k,l,m]*(1-weight)+Cm[i+1,j,k,l,m]*weight
+                            # Mid-value
+                            if i != 0 and i != len(alpha_i)-1:
+                                weight = (alpha_i[i+1]-alpha)/(alpha_i[i+1]-alpha_i[i-1])
+                                CL[i,j,k,l,m] = CL[i-1,j,k,l,m]*(1-weight)+CL[i+1,j,k,l,m]*weight
+                                CD[i,j,k,l,m] = CD[i-1,j,k,l,m]*(1-weight)+CD[i+1,j,k,l,m]*weight
+                                Cm[i,j,k,l,m] = Cm[i-1,j,k,l,m]*(1-weight)+Cm[i+1,j,k,l,m]*weight
 
-                # Clean up polar files
-                sp.call(['rm', filename])
+                    # Clean up polar files
+                    sp.call(['rm', filename])
 
         return CL, CD, Cm
 
@@ -1889,7 +1894,7 @@ class Airfoil:
         """
 
         # Check for database
-        if not hasattr("_data"):
+        if not hasattr(self, "_data"):
             raise RuntimeError("No database found! Please generate or import a database before trying to create polynomial fits.")
         
         # Sort fit degrees
