@@ -26,20 +26,11 @@ The following are keys which can be specified in the airfoil JSON object.
 >>**"NACA" : str, optional**
 >>>NACA designation for the airfoil. If given, MachUpX will automatically generate outline points using the NACA equations. Can only be NACA 4-digit series. Cannot be specified along with "outline_points".
 >
->**"trailing_flap" : dict, optional**
->>Specifies a trailing-edge flap for the airfoil.
->>
->>**"type" : str, optional**
->>>The shape of the flap. Can be "linear" or "parabolic". Defaults to "linear".
->>
->>**"x" : float, optional**
->>>x location, nondimensionalized by the chord length, where the hinge is. Defaults to 1.0.
->>
->>**"y" : float, optional**
->>>y location, nondimensionalized by the chord length, where the hinge is. Defaults to 0.0.
->>
->>**"is_sealed" : bool, optional**
->>>Whether the hinge is sealed. Defaults to True.
+>**"trailing_flap_type" : str, optional**
+>>The shape of the flap for this airfoil. Can be "linear" or "parabolic". Defaults to "linear".
+>
+>**"trailing_flap_hinge_height" : float, optional**
+>>y location of the flap hinge, nondimensionalized by the chord length. Defaults to 0.0 (i.e. on the chord line).
 >
 >The following keys are pertinent to the "linear" type.
 >

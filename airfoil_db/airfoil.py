@@ -10,7 +10,7 @@ import json
 import copy
 import os
 import operator
-from .poly_fits import multivariablePolynomialFit, multivariablePolynomialFunction
+from .poly_fits import multivariablePolynomialFit, multivariablePolynomialFunction, autoPolyFit
 import io
 import sys
 
@@ -1867,8 +1867,9 @@ class Airfoil:
 
         Parameters
         ----------
-        CL_degrees : dict, optional
-            Order of fit polynomial for the coefficient of lift for each degree of freedom, formatted as
+        CL_degrees : dict or str, optional
+            If dict, order of fit polynomial for the coefficient of lift for each degree of freedom,
+            formatted as
 
             {
                 "<DOF1_NAME>" : <ORDER>,
@@ -1877,6 +1878,12 @@ class Airfoil:
             }
 
             Orders must be integers. Defaults to 1 for any not specified.
+
+            Can also be specified as "auto". In this case, the fit degrees will be determined automatically
+            using the method described in Morelli, "Global Nonlinear Aerodynamic Modeling Using
+            Multivariate Orthogonal Functions," Journal of Aircraft, 1995. The algorithm tried to minimize
+            the RMS error between the data and the prediction while also minimizing the degree of the fit. 
+            This will automatically determine the fit order for each degree of freedom.
 
         CD_degrees : dict, optional
             Same as CL_degrees.
@@ -1896,24 +1903,58 @@ class Airfoil:
         # Check for database
         if not hasattr(self, "_data"):
             raise RuntimeError("No database found! Please generate or import a database before trying to create polynomial fits.")
-        
-        # Sort fit degrees
-        self._CL_degrees = []
-        self._CD_degrees = []
-        self._Cm_degrees = []
-        for dof in self._dof_db_order:
-            self._CL_degrees.append(CL_degrees.get(dof, 1))
-            self._CD_degrees.append(CD_degrees.get(dof, 1))
-            self._Cm_degrees.append(Cm_degrees.get(dof, 1))
 
         # Suppress output
         text_trap = io.StringIO()
         sys.stdout = text_trap
+        
+        # CL
+        if CL_degrees=="auto":
+            self._CL_poly_coefs, self._CL_degrees, R2_CL = autoPolyFit(self._data[:,:self._num_dofs], self._data[:, self._num_dofs])
 
-        # Generate polynomial fit
-        self._CL_poly_coefs, R2_CL = multivariablePolynomialFit(self._CL_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs], interaction=interaction)
-        self._CD_poly_coefs, R2_CD = multivariablePolynomialFit(self._CD_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs+1], interaction=interaction)
-        self._Cm_poly_coefs, R2_Cm = multivariablePolynomialFit(self._Cm_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs+2], interaction=interaction)
+        elif isinstance(CL_degrees, dict):
+
+            # Sort fit degrees
+            self._CL_degrees = []
+            for dof in self._dof_db_order:
+                self._CL_degrees.append(CL_degrees.get(dof, 1))
+
+            # Generate
+            self._CL_poly_coefs, R2_CL = multivariablePolynomialFit(self._CL_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs], interaction=interaction)
+
+        else:
+            raise IOError("Fit degree specification must be 'auto' or type(dict). Got {0} type {1}.".format(CL_degrees, type(CL_degrees)))
+        
+        # CD
+        if CD_degrees=="auto":
+            self._CD_poly_coefs, self._CD_degrees, R2_CD = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1])
+
+        elif isinstance(CL_degrees, dict):
+
+            # Sort fit degrees
+            self._CD_degrees = []
+            for dof in self._dof_db_order:
+                self._CD_degrees.append(CD_degrees.get(dof, 1))
+
+            # Generate
+            self._CD_poly_coefs, R2_CD = multivariablePolynomialFit(self._CD_degrees, self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], interaction=interaction)
+
+        else:
+            raise IOError("Fit degree specification must be 'auto' or type(dict). Got {0} type {1}.".format(CL_degrees, type(CL_degrees)))
+        
+        # Cm
+        if Cm_degrees=="auto":
+            self._Cm_poly_coefs, self._Cm_degrees, R2_Cm = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1])
+
+        elif isinstance(Cm_degrees, dict):
+
+            # Sort fit degrees
+            self._Cm_degrees = []
+            for dof in self._dof_db_order:
+                self._Cm_degrees.append(Cm_degrees.get(dof, 1))
+
+            # Generate polynomial fit
+            self._Cm_poly_coefs, R2_Cm = multivariablePolynomialFit(self._Cm_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs+2], interaction=interaction)
 
         # Reenable output
         sys.stdout = sys.__stdout__
