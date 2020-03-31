@@ -28,12 +28,12 @@ dofs = {
     },
     "Rey" : {
         "range" : [100000, 400000],
-        "steps" : 4,
+        "steps" : 2,
         "index" : 2
     },
     "Mach" : {
         "range" : [0.0, 0.4],
-        "steps" : 4,
+        "steps" : 6,
         "index" : 3
     },
     "trailing_flap_deflection" : {
@@ -49,9 +49,9 @@ dofs = {
 }
 
 # Generate or import database
-airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, verbose=True, show_xfoil_output=True)
-airfoil.export_database(filename="database.txt")
-#airfoil.import_database(filename="database.txt")
+#airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, verbose=True, show_xfoil_output=True)
+#airfoil.export_database(filename="database.txt")
+airfoil.import_database(filename="database.txt")
 
 # Fit orders
 CL_fit_orders = {
@@ -76,8 +76,8 @@ Cm_fit_orders = {
 }
 
 # Generate or import fits
-airfoil.generate_polynomial_fit(CL_fit_orders, CD_fit_orders, Cm_fit_orders)
-#airfoil.generate_polynomial_fit("auto", "auto", "auto")
+#airfoil.generate_polynomial_fit(CL_degrees=CL_fit_orders, CD_degrees=CD_fit_orders, Cm_degrees=Cm_fit_orders)
+airfoil.generate_polynomial_fit(CL_degrees="auto", CD_degrees="auto", Cm_degrees="auto")
 airfoil.export_polynomial_fits(filename="database.json")
 #airfoil.import_polynomial_fits(filename="database.json")
 

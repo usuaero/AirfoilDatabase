@@ -1351,6 +1351,10 @@ class Airfoil:
 
             Please note that all angular degreees of freedom are in radians, rather than degrees.
 
+            Currently, the number of steps in Reynolds number multiplied by the number of steps in Mach number
+            may not exceed 12. This is due to internal limitations in Xfoil. However, due to the weak dependence
+            of airfoil properties on Reynolds number, we do not expect this to be a great hinderance.
+
             If "steps" is 1, this variable will be constant for all Xfoil runs and will not be considered as
             an independent variable for the purpose of database generation. In this case, "index" should not be
             specified and the values in "range" should be the same.
@@ -1632,6 +1636,8 @@ class Airfoil:
         num_xfoil_runs = fourth_dim*fifth_dim
         for l, delta_ft in enumerate(delta_fts):
             for m, c_ft in enumerate(c_fts):
+                
+                # Clear pacc file list
                 pacc_files = []
             
                 # Export geometry
@@ -1644,33 +1650,33 @@ class Airfoil:
                     percent_complete = round((l*fifth_dim+m)/(num_xfoil_runs)*100)
                     print("{0:>24}%{1:>25}{2:>25}".format(percent_complete, math.degrees(delta_ft), c_ft))
 
-                # Initialize xfoil execution
-                with sp.Popen(['xfoil'], stdin=sp.PIPE, stdout=sp.PIPE) as xfoil_process:
+                # Loop through Reynolds number
+                for Re in Reys:
 
-                    commands = []
+                    # Initialize xfoil execution
+                    with sp.Popen(['xfoil'], stdin=sp.PIPE, stdout=sp.PIPE) as xfoil_process:
 
-                    # Read in geometry
-                    commands += ['LOAD {0}'.format(geom_file),
-                                 '{0}'.format(self.name)]
+                        commands = []
 
-                    # Set panelling ratio and let Xfoil makes its own panels
-                    commands += ['PPAR',
-                                 'N',
-                                 '{0}'.format(N),
-                                 'T',
-                                 '1',
-                                 '',
-                                 '']
+                        # Read in geometry
+                        commands += ['LOAD {0}'.format(geom_file),
+                                     '{0}'.format(self.name)]
 
-                    # Set viscous mode
-                    commands += ['OPER',
-                                 'VISC',
-                                 '',
-                                 '']
-                    pacc_index = 0
+                        # Set panelling ratio and let Xfoil makes its own panels
+                        commands += ['PPAR',
+                                     'N',
+                                     '{0}'.format(N),
+                                     'T',
+                                     '1',
+                                     '',
+                                     '']
 
-                    # Loop through Reynolds number
-                    for Re in Reys:
+                        # Set viscous mode
+                        commands += ['OPER',
+                                     'VISC',
+                                     '',
+                                     '']
+                        pacc_index = 0
 
                         # Loop through Mach numbers
                         for M in Machs:
@@ -1680,7 +1686,7 @@ class Airfoil:
                             pacc_file = "xfoil_results_{0}.pacc".format(file_id)
                             pacc_files.append(pacc_file)
 
-                            # Set up commands
+                            # Set Mach, Reynolds number, iteration limit, and polar accumulation
                             commands += ['OPER',
                                         'RE',
                                         str(Re),
@@ -1700,19 +1706,19 @@ class Airfoil:
                                          '']
                             pacc_index += 1
 
-                    # Finish commands
-                    commands += ['',
-                                 'QUIT']
+                        # Finish commands
+                        commands += ['',
+                                     'QUIT']
 
-                    # Run Xfoil
-                    xfoil_input = '\r'.join(commands).encode('utf-8')
-                    response = xfoil_process.communicate(xfoil_input)
+                        # Run Xfoil
+                        xfoil_input = '\r'.join(commands).encode('utf-8')
+                        response = xfoil_process.communicate(xfoil_input)
 
-                    # Show output
-                    if show_xfoil_output:
-                        print(response[0].decode('utf-8'))
-                        if response[1] is not None:
-                            print(response[1].decode('utf-8'))
+                        # Show output
+                        if show_xfoil_output:
+                            print(response[0].decode('utf-8'))
+                            if response[1] is not None:
+                                print(response[1].decode('utf-8'))
 
                 # Clean up geometry
                 sp.call(['rm', geom_file])
@@ -1864,7 +1870,7 @@ class Airfoil:
         # Huh. Turns out I don't actually need this, so I'm not going to bother developing it further. But I'll keep it here in case it becomes useful
 
 
-    def generate_polynomial_fit(self, CL_degrees={}, CD_degrees={}, Cm_degrees={}, interaction=False, update_type=True):
+    def generate_polynomial_fit(self, **kwargs):
         """Generates a set of multivariable polynomials using least-squares regression to approximate the database.
         Note: This airfoil must have a database already for fits to be created.
 
@@ -1901,6 +1907,20 @@ class Airfoil:
         update_type : bool, optional
             Whether to update the airfoil to use the newly computed polynomial fits for calculations. Defaults to True.
 
+        max_order : int, optional
+            Gives the max order of polynomial for any one of the independent varialbes to try. Defaults to the largest number
+            of independent variable values present in the database, minus 1.
+
+        sigma : float, optional
+            Value used to determine the trade off between how good of a fit to perform and how many terms to keep.
+            Defaults to None, which causes the function to calculate sigma automatically using the mean squared of the
+            difference of the independent variable values with respect to the mean independent variable value of the dataset
+            
+        sigma_multiplier : float, optional
+            Term multiplied onto sigma to change it's value. Allows using a multiple of the automatically determined sigma
+            value. Defaults to 1.
+
+        verbose : bool, optional
         """
 
         # Check for database
@@ -1908,21 +1928,20 @@ class Airfoil:
             raise RuntimeError("No database found! Please generate or import a database before trying to create polynomial fits.")
 
         # Determine what the maximum fit order is for autoPolyFit
-        if "auto" in [CL_degrees, CD_degrees, Cm_degrees]:
+        CL_degrees = kwargs.pop("CL_degrees", {})
+        CD_degrees = kwargs.pop("CD_degrees", {})
+        Cm_degrees = kwargs.pop("Cm_degrees", {})
+        max_order = kwargs.pop("max_order", None)
+        if "auto" in [CL_degrees, CD_degrees, Cm_degrees] and max_order is None:
             max_order = 1
             for i in range(self._num_dofs):
                 dof_points = np.unique(self._data[:,i])
                 dof_max_order = len(dof_points)-1
                 max_order = max(max_order, dof_max_order)
 
-
-        ## Suppress output
-        #text_trap = io.StringIO()
-        #sys.stdout = text_trap
-        
         # CL
         if CL_degrees=="auto":
-            self._CL_poly_coefs, self._CL_degrees, R2_CL = autoPolyFit(self._data[:,:self._num_dofs], self._data[:, self._num_dofs], MaxOrder=max_order)
+            self._CL_poly_coefs, self._CL_degrees, R2_CL = autoPolyFit(self._data[:,:self._num_dofs], self._data[:, self._num_dofs], max_order=max_order, **kwargs)
 
         elif isinstance(CL_degrees, dict):
 
@@ -1932,14 +1951,14 @@ class Airfoil:
                 self._CL_degrees.append(CL_degrees.get(dof, 1))
 
             # Generate
-            self._CL_poly_coefs, R2_CL = multivariablePolynomialFit(self._CL_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs], interaction=interaction)
+            self._CL_poly_coefs, R2_CL = multivariablePolynomialFit(self._CL_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs], **kwargs)
 
         else:
             raise IOError("Fit degree specification must be 'auto' or type(dict). Got {0} type {1}.".format(CL_degrees, type(CL_degrees)))
         
         # CD
         if CD_degrees=="auto":
-            self._CD_poly_coefs, self._CD_degrees, R2_CD = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], MaxOrder=max_order)
+            self._CD_poly_coefs, self._CD_degrees, R2_CD = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], max_order=max_order, **kwargs)
 
         elif isinstance(CL_degrees, dict):
 
@@ -1949,14 +1968,14 @@ class Airfoil:
                 self._CD_degrees.append(CD_degrees.get(dof, 1))
 
             # Generate
-            self._CD_poly_coefs, R2_CD = multivariablePolynomialFit(self._CD_degrees, self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], interaction=interaction)
+            self._CD_poly_coefs, R2_CD = multivariablePolynomialFit(self._CD_degrees, self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], **kwargs)
 
         else:
             raise IOError("Fit degree specification must be 'auto' or type(dict). Got {0} type {1}.".format(CL_degrees, type(CL_degrees)))
         
         # Cm
         if Cm_degrees=="auto":
-            self._Cm_poly_coefs, self._Cm_degrees, R2_Cm = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], MaxOrder=max_order)
+            self._Cm_poly_coefs, self._Cm_degrees, R2_Cm = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], max_order=max_order, **kwargs)
 
         elif isinstance(Cm_degrees, dict):
 
@@ -1966,13 +1985,7 @@ class Airfoil:
                 self._Cm_degrees.append(Cm_degrees.get(dof, 1))
 
             # Generate polynomial fit
-            self._Cm_poly_coefs, R2_Cm = multivariablePolynomialFit(self._Cm_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs+2], interaction=interaction)
-
-        # Reenable output
-        #sys.stdout = sys.__stdout__
-
-        # Set type
-        self._type = "poly_fit"
+            self._Cm_poly_coefs, R2_Cm = multivariablePolynomialFit(self._Cm_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs+2], **kwargs)
 
         # Store limits
         self._dof_limits = []
@@ -1980,7 +1993,7 @@ class Airfoil:
             self._dof_limits.append([np.min(self._data[:,i]), np.max(self._data[:,i])])
 
         # Update type
-        if update_type:
+        if kwargs.get("update_type", True):
             self.set_type("poly_fit")
 
 

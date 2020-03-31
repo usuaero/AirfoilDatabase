@@ -672,7 +672,7 @@ def isClose(x, y, tol=1.e-12):
     return y-tol <= x and x <= y+tol
 
 
-def autoPolyFit(X, y, MaxOrder=12, tol=1.e-12, sigma=None, sigmaMultiplier=1., verbose=True):
+def autoPolyFit(X, y, max_order=12, tol=1.e-12, sigma=None, sigma_multiplier=1., verbose=True):
     '''
     autoPolyFit function performs a mutivariable polynomial curve
     fit to a dataset and automatically determines which terms in the
@@ -685,7 +685,7 @@ def autoPolyFit(X, y, MaxOrder=12, tol=1.e-12, sigma=None, sigmaMultiplier=1., v
             set and m is the number of independent variables
         y : list or numpy array with length N. y is the dependent variable
             values cooresponding to the independent variables in X
-        MaxOrder : optional integer. gives the max order of polynomial for
+        max_order : optional integer. gives the max order of polynomial for
             any one of the independent varialbes to try. defaults to 12
         tol : optional float. Gives the cut-off value for any polynomial
             coefficient to not be included in the final results. If a
@@ -697,7 +697,7 @@ def autoPolyFit(X, y, MaxOrder=12, tol=1.e-12, sigma=None, sigmaMultiplier=1., v
             automatically using the mean squared of the difference of the
             independent variable values with respect to the mean independent
             variable value of the dataset
-        sigmaMultiplier : optional float. term multiplied onto sigma to
+        sigma_multiplier : optional float. term multiplied onto sigma to
             change it's value. Allows using a multiple of the automatically
             determined sigma value. Defaults to 1.
     
@@ -713,7 +713,7 @@ def autoPolyFit(X, y, MaxOrder=12, tol=1.e-12, sigma=None, sigmaMultiplier=1., v
     ## number of independent variables
     m = X.shape[1]
     ## max range of polynomials to try
-    Nvec = tuple([MaxOrder]*m)
+    Nvec = tuple([max_order]*m)
     ## number of datapoints
     N = len(y)
     ## number of p functions
@@ -779,7 +779,7 @@ def autoPolyFit(X, y, MaxOrder=12, tol=1.e-12, sigma=None, sigmaMultiplier=1., v
     if sigma == None:
         yavg = sum(y) / N
         sigma = sum([(i - yavg)**2. for i in y]) / N
-    sigma *= sigmaMultiplier
+    sigma *= sigma_multiplier
     
     for n in range(1,K+1):
         Phat = P[:,:n]
