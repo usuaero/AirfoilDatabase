@@ -153,6 +153,11 @@ class Airfoil:
             # Import
             with open(geom_file, 'r') as input_handle:
                 self._raw_outline = np.genfromtxt(input_handle)
+                
+            # Check for comma-delimited
+            if np.isnan(self._raw_outline).any():
+                with open(geom_file, 'r') as input_handle:
+                    self._raw_outline = np.genfromtxt(input_handle, delimiter=',')
 
             # Get number of points
             self._N_orig = self._raw_outline.shape[0]
