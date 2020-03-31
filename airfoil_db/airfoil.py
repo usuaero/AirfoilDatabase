@@ -13,6 +13,7 @@ import operator
 from .poly_fits import multivariablePolynomialFit, multivariablePolynomialFunction, autoPolyFit
 import io
 import sys
+import warnings
 
 
 class Airfoil:
@@ -1052,7 +1053,7 @@ class Airfoil:
                     theta_t = np.linspace(0.0, np.pi, N_t)
                     s_t = 0.5*(1-np.cos(theta_t))*self._s_le
                     theta_b = np.linspace(0.0, np.pi, N_b)
-                    s_b = 0.5*(1-np.cos(theta_b))*(1-self._s_le-0.000001)+self._s_le+0.000001
+                    s_b = 0.5*(1-np.cos(theta_b))*(1-self._s_le-0.0001)+self._s_le+0.0001
                     # I tack on the miniscule offset to keep it from generating 2 points at exactly the
                     # leading edge. Xfoil seems to not like that...
                     s = np.concatenate([s_t, s_b])
@@ -1122,7 +1123,7 @@ class Airfoil:
 
                     # Iterate
                     while (abs(R1)>1e-10).any():
-                        E_p2 = np.where(np.abs(R0-R1) != 0.0, E_p1-R1*(E_p0-E_p1)/(R0-R1), E_p1) # This may throw a warning but shouldn't fail
+                        E_p2 = np.where(np.abs(R0-R1) != 0.0, E_p1-R1*(E_p0-E_p1)/(R0-R1), E_p1) # This can throw a warning but won't affect execution
                         R2 = E_p2/2*np.sqrt(E_p2**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p2/l_n*R_tan_df)-E_0
 
                         # Update for next iteration
@@ -1632,16 +1633,16 @@ class Airfoil:
         for l, delta_ft in enumerate(delta_fts):
             for m, c_ft in enumerate(c_fts):
                 pacc_files = []
-
-                # Display update
-                if verbose:
-                    percent_complete = round((l*fifth_dim+m)/(num_xfoil_runs)*100)
-                    print("{0:>24}%{1:>25}{2:>25}".format(percent_complete, math.degrees(delta_ft), c_ft))
             
                 # Export geometry
                 geom_file = "a_{0:1.6f}_{1:1.6f}.geom".format(delta_ft, c_ft)
                 #geom_file = os.path.abspath("xfoil_geom_{0:1.6f}.geom".format(delta_ft))
                 self.get_outline_points(N=N, trailing_flap_deflection=delta_ft, trailing_flap_fraction=c_ft, export=geom_file, close_te=False)
+
+                # Display update
+                if verbose:
+                    percent_complete = round((l*fifth_dim+m)/(num_xfoil_runs)*100)
+                    print("{0:>24}%{1:>25}{2:>25}".format(percent_complete, math.degrees(delta_ft), c_ft))
 
                 # Initialize xfoil execution
                 with sp.Popen(['xfoil'], stdin=sp.PIPE, stdout=sp.PIPE) as xfoil_process:
@@ -1650,7 +1651,7 @@ class Airfoil:
 
                     # Read in geometry
                     commands += ['LOAD {0}'.format(geom_file),
-                                 '{0}_{1:.3E}'.format(self.name, delta_ft)]
+                                 '{0}'.format(self.name)]
 
                     # Set panelling ratio and let Xfoil makes its own panels
                     commands += ['PPAR',
@@ -1668,8 +1669,10 @@ class Airfoil:
                                  '']
                     pacc_index = 0
 
-                    # Loop through Mach and Reynolds number
+                    # Loop through Reynolds number
                     for Re in Reys:
+
+                        # Loop through Mach numbers
                         for M in Machs:
 
                             # Polar accumulation file
@@ -1721,7 +1724,7 @@ class Airfoil:
                     try:
                         alpha_i, CL_i, CD_i, Cm_i, Re_i, M_i = self.read_pacc_file(filename)
                     except FileNotFoundError:
-                        raise RuntimeWarning("Couldn't find results file {0}. Usually an indication of Xfoil crashing.".format(filename))
+                        warnings.warn("Couldn't find results file {0}. Usually an indication of Xfoil crashing.".format(filename))
                         continue
 
                     # Determine the Reynolds and Mach indices
@@ -1904,13 +1907,22 @@ class Airfoil:
         if not hasattr(self, "_data"):
             raise RuntimeError("No database found! Please generate or import a database before trying to create polynomial fits.")
 
-        # Suppress output
-        text_trap = io.StringIO()
-        sys.stdout = text_trap
+        # Determine what the maximum fit order is for autoPolyFit
+        if "auto" in [CL_degrees, CD_degrees, Cm_degrees]:
+            max_order = 1
+            for i in range(self._num_dofs):
+                dof_points = np.unique(self._data[:,i])
+                dof_max_order = len(dof_points)-1
+                max_order = max(max_order, dof_max_order)
+
+
+        ## Suppress output
+        #text_trap = io.StringIO()
+        #sys.stdout = text_trap
         
         # CL
         if CL_degrees=="auto":
-            self._CL_poly_coefs, self._CL_degrees, R2_CL = autoPolyFit(self._data[:,:self._num_dofs], self._data[:, self._num_dofs])
+            self._CL_poly_coefs, self._CL_degrees, R2_CL = autoPolyFit(self._data[:,:self._num_dofs], self._data[:, self._num_dofs], MaxOrder=max_order)
 
         elif isinstance(CL_degrees, dict):
 
@@ -1927,7 +1939,7 @@ class Airfoil:
         
         # CD
         if CD_degrees=="auto":
-            self._CD_poly_coefs, self._CD_degrees, R2_CD = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1])
+            self._CD_poly_coefs, self._CD_degrees, R2_CD = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], MaxOrder=max_order)
 
         elif isinstance(CL_degrees, dict):
 
@@ -1944,7 +1956,7 @@ class Airfoil:
         
         # Cm
         if Cm_degrees=="auto":
-            self._Cm_poly_coefs, self._Cm_degrees, R2_Cm = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1])
+            self._Cm_poly_coefs, self._Cm_degrees, R2_Cm = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], MaxOrder=max_order)
 
         elif isinstance(Cm_degrees, dict):
 
@@ -1957,7 +1969,7 @@ class Airfoil:
             self._Cm_poly_coefs, R2_Cm = multivariablePolynomialFit(self._Cm_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs+2], interaction=interaction)
 
         # Reenable output
-        sys.stdout = sys.__stdout__
+        #sys.stdout = sys.__stdout__
 
         # Set type
         self._type = "poly_fit"
