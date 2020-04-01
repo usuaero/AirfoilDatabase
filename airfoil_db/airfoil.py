@@ -1521,10 +1521,6 @@ class Airfoil:
             if col_name == "CL":
                 break
 
-            # Check it's appropriate
-            if col_name not in self._allowable_dofs:
-                raise IOError("Column {0} in {1} is not an allowable degree of freedom or coefficient specification.".format(col_name, filename))
-
             # Add
             self._dof_db_cols[col_name] = i
             self._num_dofs += 1
