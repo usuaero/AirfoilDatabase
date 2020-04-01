@@ -160,7 +160,7 @@ class Airfoil:
                 # Import
                 with open(outline_points, 'r') as input_handle:
                     self._raw_outline = np.genfromtxt(input_handle)
-                    
+
                 # Check for comma-delimited
                 if np.isnan(self._raw_outline).any():
                     with open(outline_points, 'r') as input_handle:
@@ -1341,8 +1341,9 @@ class Airfoil:
                 "trailing_flap_deflection"
                 "trailing_flap_fraction"
 
-            Each key should be one of these degrees of freedom. The value should then be a dictionary 
-            describing how that DOF should be perturbed. The following keys must be specified:
+            Each key should be one of these degrees of freedom. The value is a dictionary or a float
+            describing how that DOF should be perturbed. If a dictionary, the following keys must be
+            specified:
 
                 "range" : list
                     The lower and upper limits for this DOF.
@@ -1352,6 +1353,8 @@ class Airfoil:
 
                 "index" : int
                     Index of the column for this degree of freedom in the database.
+
+            If a float, the degree of freedom is assumed to be constant at that value.
             
             If not specified, the above degrees of freedom default to the following:
 
@@ -1367,15 +1370,22 @@ class Airfoil:
             may not exceed 12. This is due to internal limitations in Xfoil. However, due to the weak dependence
             of airfoil properties on Reynolds number, we do not expect this to be a great hinderance.
 
-            If "steps" is 1, this variable will be constant for all Xfoil runs and will not be considered as
-            an independent variable for the purpose of database generation. In this case, "index" should not be
-            specified and the values in "range" should be the same.
-
         N : int, optional
             Number of panel nodes for Xfoil to use. Defaults to 200.
 
         max_iter : int, optional
-            Maximum iterations for Xfoil. Defaults to 5000.
+            Maximum iterations for Xfoil. Defaults to 100.
+
+        x_trip : float or list, optional
+            x location, non-dimensionalized by the chord length, of the boundary layer trip position. This is 
+            specified for the top and bottom of the airfoil. If a float, the value is the same for the top
+            and the bottom. If a list, the first list element is the top trip location and the second list element
+            is the bottom trip location. Defaults to 1.0 for both.
+
+        N_crit : float or list, optional
+            Critical amplification exponent for the boundary layer in Xfoil. If a float, the value is the same for
+            the top and the bottom. If a list, the first list element is for the top and the second list element is
+            for the bottom. Defaults to 9.0 for both.
 
         update_type : bool, optional
             Whether to update the airfoil to use the newly computed database for calculations. Defaults to True.
@@ -1384,17 +1394,21 @@ class Airfoil:
             Display whatever Xfoil prints out. Defaults to False.
 
         verbose : bool, optional
+            Defaults to True
         """
 
         # Set up lists of independent vars
         xfoil_args = {}
         self._dof_db_cols = {}
+        num_total_runs = 1
         for dof, params in kwargs.pop("degrees_of_freedom", {}).items():
             if dof not in self._allowable_dofs:
                 raise IOError("{0} is not an allowable DOF.".format(dof))
             vals, column_index = self._setup_ind_var(params)
             xfoil_args[dof] = vals
-            self._dof_db_cols[dof] = column_index
+            num_total_runs *= len(vals)
+            if column_index is not None:
+                self._dof_db_cols[dof] = column_index
 
         # Get coefficients
         CL, CD, Cm = self.run_xfoil(**xfoil_args, **kwargs)
@@ -1447,6 +1461,12 @@ class Airfoil:
         for i in range(self._num_dofs,-1,-1):
             self._data = self._data[self._data[:,i].argsort(axis=0, kind='stable')] # 'stable' option is necessary to maintain ordering of columns not being actively sorted
 
+        # Let the user know how much of the design space we actually got results for
+        if kwargs.get("verbose", True):
+            percent_success = round(self._data.shape[0]/num_total_runs*100, 2)
+            print("\nDatabase generation complete.")
+            print("Convergent results obtained from Xfoil for {0}% of the design space.".format(percent_success))
+
         # Update type
         if kwargs.get("update_type", True):
             self.set_type("database")
@@ -1454,13 +1474,21 @@ class Airfoil:
 
     def _setup_ind_var(self, input_dict):
         # Sets up a range of independent variables
-        limits = input_dict.get("range")
-        lower = limits[0]
-        upper = limits[1]
-        N = input_dict.get("steps")
-        index = input_dict.get("index", None)
-        if N == 1 and index is not None:
-            raise IOError("Column index may not be specified for a degree of freedom with only one value.")
+
+        # Constant value
+        if isinstance(input_dict, float):
+            lower = input_dict
+            upper = input_dict
+            N = 1
+            index = None
+
+        # Range
+        else:
+            limits = input_dict.get("range")
+            lower = limits[0]
+            upper = limits[1]
+            N = input_dict.get("steps")
+            index = input_dict.get("index", None)
         
         return list(np.linspace(lower, upper, N)), index
 
@@ -1565,7 +1593,18 @@ class Airfoil:
             Number of panels for Xfoil to use. Defaults to 200.
 
         max_iter : int, optional
-            Maximum iterations for Xfoil. Defaults to 5000.
+            Maximum iterations for Xfoil. Defaults to 100.
+
+        x_trip : float or list, optional
+            x location, non-dimensionalized by the chord length, of the boundary layer trip position. This is 
+            specified for the top and bottom of the airfoil. If a float, the value is the same for the top
+            and the bottom. If a list, the first list element is the top trip location and the second list element
+            is the bottom trip location. Defaults to 1.0 for both.
+
+        N_crit : float or list, optional
+            Critical amplification exponent for the boundary layer in Xfoil. If a float, the value is the same for
+            the top and the bottom. If a list, the first list element is for the top and the second list element is
+            for the bottom. Defaults to 9.0 for both.
 
         show_xfoil_output : bool, optional
             Display whatever Xfoil outputs from the command line interface. Defaults to False.
@@ -1584,9 +1623,15 @@ class Airfoil:
             Moment coefficient. Dimensions same as CL.
         """
         N = kwargs.get("N", 200)
-        max_iter = kwargs.get("max_iter", 5000) # We really want this to converge...
+        max_iter = kwargs.get("max_iter", 100)
         verbose = kwargs.get("verbose", True)
         show_xfoil_output = kwargs.get("show_xfoil_output", False)
+        x_trip = kwargs.get("x_trip", [1.0, 1.0])
+        if isinstance(x_trip, float):
+            x_trip = [x_trip, x_trip]
+        N_crit = kwargs.get("N_crit", [9.0, 9.0])
+        if isinstance(N_crit, float):
+            N_crit = [N_crit, N_crit]
 
         # Get states
         # Angle of attack
@@ -1682,9 +1727,20 @@ class Airfoil:
                         # Set viscous mode
                         commands += ['OPER',
                                      'VISC',
-                                     '',
                                      '']
                         pacc_index = 0
+
+                        # Set boundary layer parameters
+                        commands += ['VPAR',
+                                     'Xtr',
+                                     str(x_trip[0]),
+                                     str(x_trip[1]),
+                                     'NT',
+                                     str(N_crit[0]),
+                                     'NB',
+                                     str(N_crit[1]),
+                                     '',
+                                     '']
 
                         # Loop through Mach numbers
                         for M in Machs:
@@ -1706,7 +1762,10 @@ class Airfoil:
                                         '']
 
                             # Loop through alphas
-                            for a in alphas:
+                            zero_ind = np.argmin(np.abs(alphas))
+                            for a in alphas[zero_ind:]:
+                                commands.append('ALFA {0:1.6f}'.format(math.degrees(a)))
+                            for a in alphas[zero_ind-1::-1]:
                                 commands.append('ALFA {0:1.6f}'.format(math.degrees(a)))
 
                             # End polar accumulation
@@ -1813,22 +1872,29 @@ class Airfoil:
                 lines.append(line)
                 line = file_handle.readline()
 
-            # Find Mach and Reynolds number
-            mr_line = lines[8].split()
-            M = float(mr_line[2])
-            Re = float(''.join(mr_line[5:8]))
+        # Find Mach and Reynolds number
+        mr_line = lines[8].split()
+        M = float(mr_line[2])
+        Re = float(''.join(mr_line[5:8]))
 
-            # Collect alpha and coefficients
-            alpha = []
-            CL = []
-            CD = []
-            Cm = []
-            for line in lines[12:]:
-                split_line = line.split()
-                alpha.append(math.radians(float(split_line[0])))
-                CL.append(float(split_line[1]))
-                CD.append(float(split_line[2]))
-                Cm.append(float(split_line[4]))
+        # Collect alpha and coefficients
+        alpha = []
+        CL = []
+        CD = []
+        Cm = []
+        for line in lines[12:]:
+            split_line = line.split()
+            alpha.append(math.radians(float(split_line[0])))
+            CL.append(float(split_line[1]))
+            CD.append(float(split_line[2]))
+            Cm.append(float(split_line[4]))
+
+        # Sort in alpha
+        sorted_indices = np.argsort(alpha)
+        alpha = np.array(alpha)[sorted_indices]
+        CL = np.array(CL)[sorted_indices]
+        CD = np.array(CD)[sorted_indices]
+        Cm = np.array(Cm)[sorted_indices]
 
         return alpha, CL, CD, Cm, Re, M
 

@@ -26,30 +26,31 @@ dofs = {
         "steps" : 11,
         "index" : 1
     },
-    "Rey" : {
-        "range" : [100000, 400000],
-        "steps" : 2,
-        "index" : 2
-    },
-    "Mach" : {
-        "range" : [0.0, 0.4],
-        "steps" : 6,
-        "index" : 3
-    },
+    #"Rey" : {
+    #    "range" : [100000, 400000],
+    #    "steps" : 2,
+    #    "index" : 2
+    #},
+    #"Mach" : {
+    #    "range" : [0.0, 0.4],
+    #    "steps" : 3,
+    #    "index" : 3
+    #},
     "trailing_flap_deflection" : {
         "range" : [m.radians(-20.0), m.radians(20.0)],
         "steps" : 7,
         "index" : 0
     },
-    "trailing_flap_fraction" : {
-        "range" : [0.0, 0.5],
-        "steps" : 3,
-        "index" : 3
-    }
+    "trailing_flap_fraction" : 0.25
+    #"trailing_flap_fraction" : {
+    #    "range" : [0.0, 0.5],
+    #    "steps" : 3,
+    #    "index" : 3
+    #}
 }
 
 # Generate or import database
-airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, verbose=True, show_xfoil_output=True)
+airfoil.generate_database(degrees_of_freedom=dofs, max_iter=200, show_xfoil_output=False)
 airfoil.export_database(filename="database.txt")
 #airfoil.import_database(filename="database.txt")
 
