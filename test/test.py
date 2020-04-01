@@ -49,9 +49,9 @@ dofs = {
 }
 
 # Generate or import database
-#airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, verbose=True, show_xfoil_output=True)
-#airfoil.export_database(filename="database.txt")
-airfoil.import_database(filename="database.txt")
+airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, verbose=True, show_xfoil_output=True)
+airfoil.export_database(filename="database.txt")
+#airfoil.import_database(filename="database.txt")
 
 # Fit orders
 CL_fit_orders = {
