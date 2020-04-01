@@ -40,11 +40,3 @@ Navigate to the root (AirfoilDatabase/) directory and execute
 `pip install .`
 
 Please note that any time you update the source code, the above command will need to be run.
-
-## Testing the Installation
-
-Once the installation is complete, run
-
-`py.test test/`
-
-to verify AirfoilDatabase is working properly on your machine.
