@@ -141,23 +141,30 @@ class Airfoil:
 
         # Check that there's only one geometry definition
         geom_dict = self._input_dict.get("geometry", {})
-        geom_file = geom_dict.get("outline_points", None)
+        outline_points = geom_dict.get("outline_points", None)
         NACA = geom_dict.get("NACA", None)
-        if geom_file is not None and NACA is not None:
+        if outline_points is not None and NACA is not None:
             raise IOError("Outline points and a NACA designation may not be both specified for airfoil {0}.".format(self.name))
 
         # Check for user-given points
-        if geom_file is not None:
+        if outline_points is not None:
             self.geom_specification = "points"
 
-            # Import
-            with open(geom_file, 'r') as input_handle:
-                self._raw_outline = np.genfromtxt(input_handle)
-                
-            # Check for comma-delimited
-            if np.isnan(self._raw_outline).any():
-                with open(geom_file, 'r') as input_handle:
-                    self._raw_outline = np.genfromtxt(input_handle, delimiter=',')
+            # Array given
+            if isinstance(outline_points, np.ndarray):
+                self._raw_outline = outline_points
+            
+            # File
+            else:
+
+                # Import
+                with open(outline_points, 'r') as input_handle:
+                    self._raw_outline = np.genfromtxt(input_handle)
+                    
+                # Check for comma-delimited
+                if np.isnan(self._raw_outline).any():
+                    with open(outline_points, 'r') as input_handle:
+                        self._raw_outline = np.genfromtxt(input_handle, delimiter=',')
 
             # Get number of points
             self._N_orig = self._raw_outline.shape[0]
@@ -1642,9 +1649,9 @@ class Airfoil:
                 pacc_files = []
             
                 # Export geometry
-                geom_file = "a_{0:1.6f}_{1:1.6f}.geom".format(delta_ft, c_ft)
-                #geom_file = os.path.abspath("xfoil_geom_{0:1.6f}.geom".format(delta_ft))
-                self.get_outline_points(N=N, trailing_flap_deflection=delta_ft, trailing_flap_fraction=c_ft, export=geom_file, close_te=False)
+                outline_points = "a_{0:1.6f}_{1:1.6f}.geom".format(delta_ft, c_ft)
+                #outline_points = os.path.abspath("xfoil_geom_{0:1.6f}.geom".format(delta_ft))
+                self.get_outline_points(N=N, trailing_flap_deflection=delta_ft, trailing_flap_fraction=c_ft, export=outline_points, close_te=False)
 
                 # Display update
                 if verbose:
@@ -1660,7 +1667,7 @@ class Airfoil:
                         commands = []
 
                         # Read in geometry
-                        commands += ['LOAD {0}'.format(geom_file),
+                        commands += ['LOAD {0}'.format(outline_points),
                                      '{0}'.format(self.name)]
 
                         # Set panelling ratio and let Xfoil makes its own panels
@@ -1722,7 +1729,7 @@ class Airfoil:
                                 print(response[1].decode('utf-8'))
 
                 # Clean up geometry
-                sp.call(['rm', geom_file])
+                sp.call(['rm', outline_points])
 
                 # Read in files and store arrays
                 for filename in pacc_files:
