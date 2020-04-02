@@ -1770,10 +1770,12 @@ class Airfoil:
 
                             # Loop through alphas
                             zero_ind = np.argmin(np.abs(alphas))
-                            for a in alphas[zero_ind:]:
-                                commands.append('ALFA {0:1.6f}'.format(math.degrees(a)))
-                            for a in alphas[zero_ind-1::-1]:
-                                commands.append('ALFA {0:1.6f}'.format(math.degrees(a)))
+                            if zero_ind != len(alphas)-1:
+                                for a in alphas[zero_ind:]:
+                                    commands.append('ALFA {0:1.6f}'.format(math.degrees(a)))
+                            if zero_ind != 0:
+                                for a in alphas[zero_ind-1::-1]:
+                                    commands.append('ALFA {0:1.6f}'.format(math.degrees(a)))
 
                             # End polar accumulation
                             commands += ['PACC {0}'.format(pacc_index),
