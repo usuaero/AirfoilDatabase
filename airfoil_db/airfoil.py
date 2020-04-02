@@ -1135,7 +1135,14 @@ class Airfoil:
 
                     # Iterate
                     while (abs(R1)>1e-10).any():
-                        E_p2 = np.where(np.abs(R0-R1) != 0.0, E_p1-R1*(E_p0-E_p1)/(R0-R1), E_p1) # This can throw a warning but won't affect execution
+
+                        # Update value
+                        # Suppress warnings because an error will often occur within the np.where that has no effect on computation
+                        np.seterr(invalid='ignore')
+                        E_p2 = np.where(np.abs(R0-R1) != 0.0, E_p1-R1*(E_p0-E_p1)/(R0-R1), E_p1)
+                        np.seterr(invalid='warn')
+
+                        # Get residual
                         R2 = E_p2/2*np.sqrt(E_p2**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p2/l_n*R_tan_df)-E_0
 
                         # Update for next iteration
@@ -1681,7 +1688,7 @@ class Airfoil:
 
         # Loop through flap deflections and fractions
         if verbose:
-            print("Running Xfoil")
+            print("Running Xfoil...")
             print("{0:>25}{1:>25}{2:>25}".format("Percent Complete", "Flap Deflection [deg]", "Flap Fraction"))
             print(''.join(['-']*75))
 

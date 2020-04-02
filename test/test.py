@@ -26,27 +26,27 @@ dofs = {
         "steps" : 11,
         "index" : 1
     },
-    #"Rey" : {
-    #    "range" : [100000, 400000],
-    #    "steps" : 2,
-    #    "index" : 2
-    #},
-    #"Mach" : {
-    #    "range" : [0.0, 0.4],
-    #    "steps" : 3,
-    #    "index" : 3
-    #},
+    "Rey" : {
+        "range" : [100000, 400000],
+        "steps" : 2,
+        "index" : 2
+    },
+    "Mach" : {
+        "range" : [0.0, 0.4],
+        "steps" : 3,
+        "index" : 3
+    },
     "trailing_flap_deflection" : {
         "range" : [m.radians(-20.0), m.radians(20.0)],
         "steps" : 7,
         "index" : 0
     },
-    "trailing_flap_fraction" : 0.25
-    #"trailing_flap_fraction" : {
-    #    "range" : [0.0, 0.5],
-    #    "steps" : 3,
-    #    "index" : 3
-    #}
+    #"trailing_flap_fraction" : 0.25
+    "trailing_flap_fraction" : {
+        "range" : [0.0, 0.5],
+        "steps" : 3,
+        "index" : 3
+    }
 }
 
 # Generate or import database
