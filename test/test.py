@@ -4,7 +4,8 @@ import numpy as np
 import math as m
 from mpl_toolkits.mplot3d import Axes3D
 
-geometry_file = "test/uCRM-9_wr0_xfoil.txt"
+#geometry_file = "test/uCRM-9_wr0_xfoil.txt"
+geometry_file = "test/64A204.txt"
 #geometry_file = "test/NACA_9412_geom.txt"
 #geometry_file = "test/NACA_0012_geom.txt"
 airfoil_input = {
@@ -22,7 +23,7 @@ airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
 
 dofs = {
     "alpha" : {
-        "range" : [m.radians(-10.0), m.radians(10.0)],
+        "range" : [m.radians(-5.0), m.radians(5.0)],
         "steps" : 11,
         "index" : 1
     },
@@ -50,8 +51,8 @@ dofs = {
 }
 
 # Generate or import database
-airfoil.generate_database(degrees_of_freedom=dofs, max_iter=200, show_xfoil_output=False)
-airfoil.export_database(filename="database.txt")
+airfoil.generate_database(degrees_of_freedom=dofs, max_iter=10000, show_xfoil_output=False)
+airfoil.export_database(filename="christian_database.txt")
 #airfoil.import_database(filename="database.txt")
 
 # Fit orders
@@ -78,8 +79,8 @@ Cm_fit_orders = {
 
 # Generate or import fits
 #airfoil.generate_polynomial_fit(CL_degrees=CL_fit_orders, CD_degrees=CD_fit_orders, Cm_degrees=Cm_fit_orders)
-airfoil.generate_polynomial_fit(CL_degrees="auto", CD_degrees="auto", Cm_degrees="auto")
-airfoil.export_polynomial_fits(filename="database.json")
+airfoil.generate_polynomial_fit(CL_degrees="auto", CD_degrees="auto", Cm_degrees="auto", max_order=6)
+airfoil.export_polynomial_fits(filename="christian_database.json")
 #airfoil.import_polynomial_fits(filename="database.json")
 
 # Compare interpolation and fits

@@ -1781,6 +1781,9 @@ class Airfoil:
                             if zero_ind != 0:
                                 for a in alphas[zero_ind-1::-1]:
                                     commands.append('ALFA {0:1.6f}'.format(math.degrees(a)))
+                            
+                            # Reset solver
+                            commands.append('INIT')
 
                             # End polar accumulation
                             commands += ['PACC {0}'.format(pacc_index),
