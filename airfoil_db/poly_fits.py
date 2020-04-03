@@ -37,7 +37,7 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 
 
-def multivariablePolynomialFit(Nvec, xx, yy ,interaction=False, sym=[], sym_same=[], sym_diff=[], zeroConstraints=[], constraints=[], percent=False, weighting=None, display=True):
+def multivariablePolynomialFit(Nvec, xx, yy ,interaction=False, sym=[], sym_same=[], sym_diff=[], zeroConstraints=[], constraints=[], percent=False, weighting=None, verbose=True):
     """
     inputs
     
@@ -191,7 +191,7 @@ def multivariablePolynomialFit(Nvec, xx, yy ,interaction=False, sym=[], sym_same
     b = np.zeros( len(active) )
     # loop through i values
     for ii,i in enumerate(active):
-        if display: print('calculating A{}j and b{} values, {:.2f}% done'.format(i,i,ii/len(active)*100))
+        if verbose: print('calculating A{}j and b{} values, {:.2f}% done'.format(i,i,ii/len(active)*100))
         # calculate the nhat values
         nhat = decompose_j(i, Nvec)
         # loop through the j values
@@ -264,7 +264,7 @@ def multivariablePolynomialFit(Nvec, xx, yy ,interaction=False, sym=[], sym_same
             b[ii] = summ
     #solve Aa=b equation
     ########################################################################
-    if display: print('solving the Aa=b equation')
+    if verbose: print('solving the Aa=b equation')
     a = np.linalg.solve(A,b)
     #input the missing 0 coefficients into 'a' so that it can be used with the multidimensional_poly_func
     ########################################################################
