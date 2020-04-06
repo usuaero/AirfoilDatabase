@@ -37,7 +37,7 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 
 
-def multivariablePolynomialFit(Nvec, xx, yy ,interaction=True, sym=[], sym_same=[], sym_diff=[], zeroConstraints=[], constraints=[], percent=False, weighting=None, display=True):
+def multivariablePolynomialFit(Nvec, xx, yy ,interaction=True, sym=[], sym_same=[], sym_diff=[], zeroConstraints=[], constraints=[], percent=False, weighting=None, verbose=True):
     """
     inputs
     
@@ -676,7 +676,7 @@ def isClose(x, y, tol=1.e-12):
     return y-tol <= x and x <= y+tol
 
 
-def autoPolyFit(X, y, max_order=12, tol=1.e-12, sigma=None, sigma_multiplier=1., verbose=True):
+def autoPolyFit(X, y, max_order=6, tol=1.e-12, sigma=None, sigma_multiplier=1., verbose=True):
     '''
     autoPolyFit function performs a mutivariable polynomial curve
     fit to a dataset and automatically determines which terms in the
