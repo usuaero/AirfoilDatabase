@@ -10,7 +10,7 @@ import json
 import copy
 import os
 import operator
-from .poly_fits import multivariablePolynomialFit, multivariablePolynomialFunction, autoPolyFit
+from .poly_fits import multivariablePolynomialFit, multivariablePolynomialFunction, autoPolyFit, multivariableRMS, multivariableR2
 import io
 import sys
 import warnings
@@ -1991,25 +1991,80 @@ class Airfoil:
         Cm_degrees : dict, optional
             Same as CL_degrees.
 
-        interaction : bool, optional
-            Whether to include interaction terms in the polynomial fit (i.e.
-            x^2*y). Defaults to False.
+        CL_kwargs : dict, optional
+            keyword arguments sent to the CL polynomial fit function
+            
+            When CL_degrees is specified as "auto" then CL_kwargs should be
+            
+            max_order : optional integer. gives the max order of polynomial for
+                any one of the independent varialbes to try. defaults to 6
+            tol : optional float. Gives the cut-off value for any polynomial
+                coefficient to not be included in the final results. If a
+                coefficient has an absolute value below tol, it won't be
+                included. defaults to 1e-12
+            sigma : optional float. value used to determine the trade off
+                between how good of a fit to perform and how many terms to keep.
+                defaults to None, which causes the function to calculate sigma
+                automatically using the mean squared of the difference of the
+                independent variable values with respect to the mean independent
+                variable value of the dataset
+            sigma_multiplier : optional float. term multiplied onto sigma to
+                change it's value. Allows using a multiple of the automatically
+                determined sigma value. Defaults to 1.
+            
+            Otherwise CL_kwargs should be
+            
+            interaction = boolean value with default set to True. This variable
+                determines whether or not interaction terms are included in the
+                fit function. If set to True, interaction terms up the max order
+                for each independent variable are included, i.e. if Nvec = [3,2]
+                then the highest interaction term included is x_1^3*x_2^2.
+                Specific interaction terms can be omitted using the constraints
+                input
+            sym = optional list that defaults as an empty list. If used, the
+                length should be V and each element should contain a boolean,
+                True or False. The ith element determines if the ith independent
+                variable is symmetric either even or odd, which is determined by
+                the order given in Nvec. This will also remove the cooresponding
+                interaction terms if they are enabled.
+            sym_same = optional list that defaults as an empty list. If used,
+                the entries in the list should be tuples with two integers. The
+                integers represent the independent variables that the "same"
+                symmetry condition will be applied. The "same" symmetry forces
+                all interaction terms
+            sym_diff = optional list that defaults as an empty list. 
+            zeroConstraints = an optional list that defaults as an empty list.
+                Entries in the list contain integer tuples of length V. The
+                integer values represent the powers of the independent variables
+                whose coefficient will be forced to 0 before the best fit
+                calculations are performed, allowing the user to omit specific
+                interaction terms or regular polynomial terms
+            constraints = an optional list that defaults to an empty list.
+                Entries in the list contain tuples of length 2. The first entry 
+                is a list of integers that represent the powers of the
+                independent variables whose coefficient will then be forced to
+                be equal to the second entry in the tuple, which should be a
+                float.
+            percent = boolean value with default set to False. When set to True
+                the least squares is performed on the percent error squared.
+                This option should not be used if y contains any zero or near
+                zero values, as this might cause a divide by zero error.
+            weighting = optional callable function that defaults to None. If
+                given, weighting should be a function that takes as arguments:
+                x, y, and p where x and y are the independent and dependent
+                variables defined above and p is the index representing a
+                certain data point. weighting should return a 'weighting factor'
+                that determines how important that datapoint is. Returning a '1'
+                weights the datapoint normally.
+
+        CD_kwargs : dict, optional
+            Same as CL_kwargs
+
+        Cm_kwargs : dict, optional
+            Same as CL_kwargs
 
         update_type : bool, optional
             Whether to update the airfoil to use the newly computed polynomial fits for calculations. Defaults to True.
-
-        max_order : int, optional
-            Gives the max order of polynomial for any one of the independent varialbes to try. Defaults to the largest number
-            of independent variable values present in the database, minus 1.
-
-        sigma : float, optional
-            Value used to determine the trade off between how good of a fit to perform and how many terms to keep.
-            Defaults to None, which causes the function to calculate sigma automatically using the mean squared of the
-            difference of the independent variable values with respect to the mean independent variable value of the dataset
-            
-        sigma_multiplier : float, optional
-            Term multiplied onto sigma to change it's value. Allows using a multiple of the automatically determined sigma
-            value. Defaults to 1.
 
         verbose : bool, optional
         """
@@ -2022,17 +2077,27 @@ class Airfoil:
         CL_degrees = kwargs.pop("CL_degrees", {})
         CD_degrees = kwargs.pop("CD_degrees", {})
         Cm_degrees = kwargs.pop("Cm_degrees", {})
-        max_order = kwargs.pop("max_order", None)
-        if "auto" in [CL_degrees, CD_degrees, Cm_degrees] and max_order is None:
-            max_order = 1
-            for i in range(self._num_dofs):
-                dof_points = np.unique(self._data[:,i])
-                dof_max_order = len(dof_points)-1
-                max_order = max(max_order, dof_max_order)
+        CL_kwargs  = kwargs.pop("CL_kwargs", {})
+        CD_kwargs  = kwargs.pop("CD_kwargs", {})
+        Cm_kwargs  = kwargs.pop("Cm_kwargs", {})
+        verbose = kwargs.pop('verbose', True)
+        if verbose: print('Generating Polynomial Fits for airfoil {}'.format(self.name))
+        CL_kwargs['verbose'] = verbose
+        CD_kwargs['verbose'] = verbose
+        Cm_kwargs['verbose'] = verbose
+        # not sure why max_order is defaulted to the number of degrees of freedom - 1. Any one independent variable could need to be a higher polynomial order than the number of independent variables in the dataset. The two have no connection. For example, a CD vs CL plot has one independent variable (CL) yet CD is a parabolic function (typically)
+        # max_order = kwargs.pop("max_order", None)
+        # if "auto" in [CL_degrees, CD_degrees, Cm_degrees] and max_order is None:
+            # max_order = 1
+            # for i in range(self._num_dofs):
+                # dof_points = np.unique(self._data[:,i])
+                # dof_max_order = len(dof_points)-1
+                # max_order = max(max_order, dof_max_order)
 
         # CL
+        if verbose: print('Performing CL curve fit')
         if CL_degrees=="auto":
-            self._CL_poly_coefs, self._CL_degrees, R2_CL = autoPolyFit(self._data[:,:self._num_dofs], self._data[:, self._num_dofs], max_order=max_order, **kwargs)
+            self._CL_poly_coefs, self._CL_degrees, self._CLfit_R2 = autoPolyFit(self._data[:,:self._num_dofs], self._data[:, self._num_dofs], **CL_kwargs)
 
         elif isinstance(CL_degrees, dict):
 
@@ -2042,14 +2107,15 @@ class Airfoil:
                 self._CL_degrees.append(CL_degrees.get(dof, 1))
 
             # Generate
-            self._CL_poly_coefs, R2_CL = multivariablePolynomialFit(self._CL_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs], **kwargs)
+            self._CL_poly_coefs, self._CLfit_R2 = multivariablePolynomialFit(self._CL_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs], **CL_kwargs)
 
         else:
             raise IOError("Fit degree specification must be 'auto' or type(dict). Got {0} type {1}.".format(CL_degrees, type(CL_degrees)))
         
         # CD
+        if verbose: print('Performing CD curve fit')
         if CD_degrees=="auto":
-            self._CD_poly_coefs, self._CD_degrees, R2_CD = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], max_order=max_order, **kwargs)
+            self._CD_poly_coefs, self._CD_degrees, self._CDfit_R2 = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], **CD_kwargs)
 
         elif isinstance(CL_degrees, dict):
 
@@ -2059,14 +2125,15 @@ class Airfoil:
                 self._CD_degrees.append(CD_degrees.get(dof, 1))
 
             # Generate
-            self._CD_poly_coefs, R2_CD = multivariablePolynomialFit(self._CD_degrees, self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], **kwargs)
+            self._CD_poly_coefs, self._CDfit_R2 = multivariablePolynomialFit(self._CD_degrees, self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], **CD_kwargs)
 
         else:
             raise IOError("Fit degree specification must be 'auto' or type(dict). Got {0} type {1}.".format(CL_degrees, type(CL_degrees)))
         
         # Cm
+        if verbose: print('Performing Cm curve fit')
         if Cm_degrees=="auto":
-            self._Cm_poly_coefs, self._Cm_degrees, R2_Cm = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], max_order=max_order, **kwargs)
+            self._Cm_poly_coefs, self._Cm_degrees, self._Cmfit_R2 = autoPolyFit(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+2], **Cm_kwargs)
 
         elif isinstance(Cm_degrees, dict):
 
@@ -2076,7 +2143,7 @@ class Airfoil:
                 self._Cm_degrees.append(Cm_degrees.get(dof, 1))
 
             # Generate polynomial fit
-            self._Cm_poly_coefs, R2_Cm = multivariablePolynomialFit(self._Cm_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs+2], **kwargs)
+            self._Cm_poly_coefs, self._Cmfit_R2 = multivariablePolynomialFit(self._Cm_degrees, self._data[:,:self._num_dofs], self._data[:, self._num_dofs+2], **Cm_kwargs)
 
         # Store limits
         self._dof_limits = []
@@ -2086,6 +2153,24 @@ class Airfoil:
         # Update type
         if kwargs.get("update_type", True):
             self.set_type("poly_fit")
+        
+        self._CLfit_RMS, self._CLfit_RMSN = multivariableRMS(self._data[:,:self._num_dofs], self._data[:,self._num_dofs], self._CL_poly_coefs, self._CL_degrees, verbose=verbose)
+        self._CDfit_RMS, self._CDfit_RMSN = multivariableRMS(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+1], self._CD_poly_coefs, self._CD_degrees, verbose=verbose)
+        self._Cmfit_RMS, self._Cmfit_RMSN = multivariableRMS(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+2], self._Cm_poly_coefs, self._Cm_degrees, verbose=verbose)
+        
+        if verbose:
+            print('\nCL fits\n'+'='*20)
+            print('R^2 : {}'.format(self._CLfit_R2))
+            print('RMS : {}'.format(self._CLfit_RMS))
+            print('RMSN: {}\n'.format(self._CLfit_RMSN))
+            print('CD fits\n'+'='*20)
+            print('R^2 : {}'.format(self._CDfit_R2))
+            print('RMS : {}'.format(self._CDfit_RMS))
+            print('RMSN: {}\n'.format(self._CDfit_RMSN))
+            print('Cm fits\n'+'='*20)
+            print('R^2 : {}'.format(self._Cmfit_R2))
+            print('RMS : {}'.format(self._Cmfit_RMS))
+            print('RMSN: {}\n'.format(self._Cmfit_RMSN))
 
 
     def export_polynomial_fits(self, **kwargs):
@@ -2110,6 +2195,19 @@ class Airfoil:
         export["fit_degrees"]["CL"] = self._CL_degrees
         export["fit_degrees"]["CD"] = self._CD_degrees
         export["fit_degrees"]["Cm"] = self._Cm_degrees
+        export['fit_error'] = {}
+        export['fit_error']['CL'] = {}
+        export['fit_error']['CL']['R^2'] = self._CLfit_R2
+        export['fit_error']['CL']['RMS'] = self._CLfit_RMS
+        export['fit_error']['CL']['RMSN'] = self._CLfit_RMSN
+        export['fit_error']['CD'] = {}
+        export['fit_error']['CD']['R^2'] = self._CDfit_R2
+        export['fit_error']['CD']['RMS'] = self._CDfit_RMS
+        export['fit_error']['CD']['RMSN'] = self._CDfit_RMSN
+        export['fit_error']['Cm'] = {}
+        export['fit_error']['Cm']['R^2'] = self._Cmfit_R2
+        export['fit_error']['Cm']['RMS'] = self._Cmfit_RMS
+        export['fit_error']['Cm']['RMSN'] = self._Cmfit_RMSN
         export["fit_coefs"] = {}
         export["fit_coefs"]["CL"] = list(self._CL_poly_coefs)
         export["fit_coefs"]["CD"] = list(self._CD_poly_coefs)
@@ -2150,6 +2248,19 @@ class Airfoil:
         self._CL_poly_coefs = np.array(input_dict["fit_coefs"]["CL"])
         self._CD_poly_coefs = np.array(input_dict["fit_coefs"]["CD"])
         self._Cm_poly_coefs = np.array(input_dict["fit_coefs"]["Cm"])
+        if isinstance(input_dict.get('fit_error', None), dict):
+            if isinstance(input_dict['fit_error'].get('CL', None), dict):
+                self._CLfit_R2 = input_dict['fit_error']['CL'].get('R^2', None)
+                self._CLfit_RMS = input_dict['fit_error']['CL'].get('RMS', None)
+                self._CLfit_RMSN = input_dict['fit_error']['CL'].get('RMSN', None)
+            if isinstance(input_dict['fit_error'].get('CD', None), dict):
+                self._CDfit_R2 = input_dict['fit_error']['CD'].get('R^2', None)
+                self._CDfit_RMS = input_dict['fit_error']['CD'].get('RMS', None)
+                self._CDfit_RMSN = input_dict['fit_error']['CD'].get('RMSN', None)
+            if isinstance(input_dict['fit_error'].get('Cm', None), dict):
+                self._Cmfit_R2 = input_dict['fit_error']['Cm'].get('R^2', None)
+                self._Cmfit_RMS = input_dict['fit_error']['Cm'].get('RMS', None)
+                self._Cmfit_RMSN = input_dict['fit_error']['Cm'].get('RMSN', None)
 
         # Update type
         if kwargs.get("update_type", True):

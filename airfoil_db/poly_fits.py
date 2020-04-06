@@ -37,7 +37,7 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 
 
-def multivariablePolynomialFit(Nvec, xx, yy ,interaction=False, sym=[], sym_same=[], sym_diff=[], zeroConstraints=[], constraints=[], percent=False, weighting=None, verbose=True):
+def multivariablePolynomialFit(Nvec, xx, yy ,interaction=True, sym=[], sym_same=[], sym_diff=[], zeroConstraints=[], constraints=[], percent=False, weighting=None, verbose=True):
     """
     inputs
     
@@ -189,9 +189,10 @@ def multivariablePolynomialFit(Nvec, xx, yy ,interaction=False, sym=[], sym_same
     A = np.zeros( ( len(active),len(active) ) )
     # initialize b vector
     b = np.zeros( len(active) )
+    # setup progress bar for display
+    if verbose: prog = oneLineProgress(len(active), msg='Building Matrix Eq for MultiPolyFit')
     # loop through i values
     for ii,i in enumerate(active):
-        if verbose: print('calculating A{}j and b{} values, {:.2f}% done'.format(i,i,ii/len(active)*100))
         # calculate the nhat values
         nhat = decompose_j(i, Nvec)
         # loop through the j values
@@ -262,6 +263,7 @@ def multivariablePolynomialFit(Nvec, xx, yy ,interaction=False, sym=[], sym_same
                     if y[p-1] != None: summ += y[p-1] * prod
             # set bi to the finalized summation
             b[ii] = summ
+        if verbose: prog.display()
     #solve Aa=b equation
     ########################################################################
     if verbose: print('solving the Aa=b equation')
@@ -274,7 +276,7 @@ def multivariablePolynomialFit(Nvec, xx, yy ,interaction=False, sym=[], sym_same
             active = np.insert(active,i,0)
     #calculate R^2 value
     ########################################################################
-    r = multivariableR2(a, Nvec, x, y)       #r2_2D(a,M,x,y,z)
+    r = multivariableR2(a, Nvec, x, y, verbose=verbose)       #r2_2D(a,M,x,y,z)
     #return values
     return a, r
 
@@ -368,7 +370,7 @@ def multivariableR2(a, Nvec, xx, yy, verbose=True):
     # calculate and return the R^2 value
     return 1. - SSr / SSt
 
-def multivariableRMS(raw_x, raw_y, a, Nvec):
+def multivariableRMS(raw_x, raw_y, a, Nvec, verbose=True):
     """
     Routine to calculate the RMS and RMSN errors of a multivariable
     polynomial fit to a dataset
@@ -395,10 +397,12 @@ def multivariableRMS(raw_x, raw_y, a, Nvec):
     func = np.zeros(k)
     e = np.zeros(k)
     e_per = np.zeros(k)
+    if verbose: prog = oneLineProgress(k, msg='Determining RMS of the fit')
     for i in range(k):
         func[i] = multivariablePolynomialFunction(a, Nvec, x[i])
         e[i] = (y[i] - func[i]) ** 2.
         e_per[i] = ((y[i] - func[i])/avg) ** 2.
+        if verbose: prog.display()
     return np.sqrt(np.mean(e)), np.sqrt(np.mean(e_per))
 
 def compose_j(n, Nvec):
@@ -672,7 +676,7 @@ def isClose(x, y, tol=1.e-12):
     return y-tol <= x and x <= y+tol
 
 
-def autoPolyFit(X, y, max_order=12, tol=1.e-12, sigma=None, sigma_multiplier=1., verbose=True):
+def autoPolyFit(X, y, max_order=6, tol=1.e-12, sigma=None, sigma_multiplier=1., verbose=True):
     '''
     autoPolyFit function performs a mutivariable polynomial curve
     fit to a dataset and automatically determines which terms in the
@@ -844,5 +848,4 @@ def autoPolyFit(X, y, max_order=12, tol=1.e-12, sigma=None, sigma_multiplier=1.,
     if verbose: prog.display()
     
     return a, nvec, multivariableR2(a, nvec, X, y, verbose=verbose)
-
 
