@@ -1138,9 +1138,8 @@ class Airfoil:
 
                         # Update value
                         # Suppress warnings because an error will often occur within the np.where that has no effect on computation
-                        np.seterr(invalid='ignore')
-                        E_p2 = np.where(np.abs(R0-R1) != 0.0, E_p1-R1*(E_p0-E_p1)/(R0-R1), E_p1)
-                        np.seterr(invalid='warn')
+                        with np.errstate(invalid='ignore'):
+                            E_p2 = np.where(np.abs(R0-R1) != 0.0, E_p1-R1*(E_p0-E_p1)/(R0-R1), E_p1)
 
                         # Get residual
                         R2 = E_p2/2*np.sqrt(E_p2**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p2/l_n*R_tan_df)-E_0
