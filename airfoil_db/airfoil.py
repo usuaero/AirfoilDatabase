@@ -1993,69 +1993,73 @@ class Airfoil:
         CL_kwargs : dict, optional
             keyword arguments sent to the CL polynomial fit function
             
-            When CL_degrees is specified as "auto" then CL_kwargs should be
+            When CL_degrees is specified as "auto" then CL_kwargs can be
             
-            max_order : optional integer. gives the max order of polynomial for
-                any one of the independent varialbes to try. defaults to 6
-            tol : optional float. Gives the cut-off value for any polynomial
-                coefficient to not be included in the final results. If a
-                coefficient has an absolute value below tol, it won't be
-                included. defaults to 1e-12
-            sigma : optional float. value used to determine the trade off
-                between how good of a fit to perform and how many terms to keep.
-                defaults to None, which causes the function to calculate sigma
-                automatically using the mean squared of the difference of the
-                independent variable values with respect to the mean independent
-                variable value of the dataset
-            sigma_multiplier : optional float. term multiplied onto sigma to
-                change it's value. Allows using a multiple of the automatically
-                determined sigma value. Defaults to 1.
+                "max_order" : int, optional
+                    gives the max order of polynomial for any one of the independent varialbes
+                    to try. Defaults to 6.
+                "tol" : float, optional
+                    Gives the cut-off value for any polynomial coefficient to not be included
+                    in the final results. If a coefficient has an absolute value below tol,
+                    it won't be included. Defaults to 1e-12.
+                "sigma" : float, optional
+                    value used to determine the trade off between how good of a fit to perform
+                    and how many terms to keep. Defaults to None, which causes the function to
+                    calculate sigma automatically using the mean squared of the difference of
+                    the independent variable values with respect to the mean independent
+                    variable value of the dataset
+                "sigma_multiplier" : float, optional
+                    term multiplied onto sigma to change it's value. Allows using a multiple
+                    of the automatically determined sigma value. Defaults to 1.
             
-            Otherwise CL_kwargs should be
+            Otherwise CL_kwargs could be
             
-            interaction = boolean value with default set to True. This variable
-                determines whether or not interaction terms are included in the
-                fit function. If set to True, interaction terms up the max order
-                for each independent variable are included, i.e. if Nvec = [3,2]
-                then the highest interaction term included is x_1^3*x_2^2.
-                Specific interaction terms can be omitted using the constraints
-                input
-            sym = optional list that defaults as an empty list. If used, the
-                length should be V and each element should contain a boolean,
-                True or False. The ith element determines if the ith independent
-                variable is symmetric either even or odd, which is determined by
-                the order given in Nvec. This will also remove the cooresponding
-                interaction terms if they are enabled.
-            sym_same = optional list that defaults as an empty list. If used,
-                the entries in the list should be tuples with two integers. The
-                integers represent the independent variables that the "same"
-                symmetry condition will be applied. The "same" symmetry forces
-                all interaction terms
-            sym_diff = optional list that defaults as an empty list. 
-            zeroConstraints = an optional list that defaults as an empty list.
-                Entries in the list contain integer tuples of length V. The
-                integer values represent the powers of the independent variables
-                whose coefficient will be forced to 0 before the best fit
-                calculations are performed, allowing the user to omit specific
-                interaction terms or regular polynomial terms
-            constraints = an optional list that defaults to an empty list.
-                Entries in the list contain tuples of length 2. The first entry 
-                is a list of integers that represent the powers of the
-                independent variables whose coefficient will then be forced to
-                be equal to the second entry in the tuple, which should be a
-                float.
-            percent = boolean value with default set to False. When set to True
-                the least squares is performed on the percent error squared.
-                This option should not be used if y contains any zero or near
-                zero values, as this might cause a divide by zero error.
-            weighting = optional callable function that defaults to None. If
-                given, weighting should be a function that takes as arguments:
-                x, y, and p where x and y are the independent and dependent
-                variables defined above and p is the index representing a
-                certain data point. weighting should return a 'weighting factor'
-                that determines how important that datapoint is. Returning a '1'
-                weights the datapoint normally.
-
+                "interaction" : boolean, optional
+                    value with default set to True. This variable determines whether or not
+                    interaction terms are included in the fit function. If set to True,
+                    interaction terms up the max order for each independent variable are
+                    included, i.e. if Nvec = [3,2] then the highest interaction term included
+                    is x_1^3*x_2^2. Specific interaction terms can be omitted using the
+                    constraints input
+                "sym" : list, optional
+                    Defaults to an empty list. If used, the length should be V and each element
+                    should contain a boolean, True or False. The ith element determines if the
+                    ith independent variable is symmetric either even or odd, which is
+                    determined by the order given in Nvec. This will also remove the
+                    cooresponding interaction terms if they are enabled.
+                "sym_same" : list, optional
+                    Defaults as an empty list. If used, the entries in the list should be
+                    tuples with two integers. The integers represent the independent variables
+                    that the "same" symmetry condition will be applied. The "same" symmetry
+                    ensures all interaction terms with exponents of the two independent
+                    variables that are either odd-odd or even-even to be forced to zero
+                "sym_diff" : = list, optional
+                    Defaults as an empty list. Similar to "sym_same" except it enforces the
+                    "diff" symmetry condition which ensures all interaction terms with exponents
+                    of the two independent variables that are either odd-even or even-odd to be
+                    forced to zero
+                "zeroConstraints" : list, optional
+                    Defaults as an empty list. Entries in the list contain integer tuples of
+                    length V. The integer values represent the powers of the independent variables
+                    whose coefficient will be forced to 0 before the best fit calculations are
+                    performed, allowing the user to omit specific interaction terms or regular
+                    polynomial terms
+                "constraints" : list, optional
+                    Defaults to an empty list. Entries in the list contain tuples of length 2.
+                    The first entry is a list of integers that represent the powers of the
+                    independent variables whose coefficient will then be forced to be equal to the
+                    second entry in the tuple, which should be a float.
+                "percent" : boolean, optional
+                    Default set to False. When set to True the least squares is performed on the
+                    percent error squared. This option should not be used if y contains any zero
+                    or near zero values, as this might cause a divide by zero error.
+                "weighting" : function, optional
+                    Defaults to None. If given, weighting should be a function that takes as
+                    arguments x, y, and p where x and y are the independent and dependent
+                    variables defined above and p is the index representing a certain data point.
+                    weighting should return a 'weighting factor' that determines how important
+                    that datapoint is. Returning a '1' weights the datapoint normally.
+        
         CD_kwargs : dict, optional
             Same as CL_kwargs
 
