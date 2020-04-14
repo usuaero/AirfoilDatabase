@@ -1021,13 +1021,13 @@ class Airfoil:
             return (CL1-CL0)/(2*dx)
 
 
-    def get_max_thickness(self, **kwargs):
+    def get_max_thickness(self):
         """Returns the maximum thickness of the airfoil, divided by the chord length.
         """
         return self._max_thickness
 
 
-    def get_max_camber(self, **kwargs):
+    def get_max_camber(self):
         """Returns the maximum camber of the airfoil, divided by the chord length.
         """
         return self._max_camber
