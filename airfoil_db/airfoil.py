@@ -188,6 +188,8 @@ class Airfoil:
         # No geometry given
         else:
             self.geom_specification = "none"
+            self._max_camber = geom_dict.get("max_camber", 0.0)
+            self._max_thickness = geom_dict.get("max_thickness", 0.0)
             return
 
     
@@ -201,6 +203,8 @@ class Airfoil:
             self._m = float(self._naca_des[0])/100
             self._p = float(self._naca_des[1])/10
             self._t = float(self._naca_des[2:])/100
+            self._max_camber = self._m
+            self._max_thickness = self._t
 
             # Camber line
             def camber(x):
@@ -409,8 +413,9 @@ class Airfoil:
         camber_points = np.concatenate([x_c[:,np.newaxis], y_c[:,np.newaxis]], axis=1)
         self._normalize_points(camber_points, le, te)
 
-        # Store camber
+        # Store camber and max camber
         self._camber_line = interp.UnivariateSpline(camber_points[:,0], camber_points[:,1], k=5, s=1e-10)
+        self._max_camber = np.max(camber_points[:,1])
 
         # Calculate thickness
         y_c = self._camber_line(x_space)
@@ -432,6 +437,7 @@ class Airfoil:
 
         t = 0.5*np.sqrt((x_t_t-x_b_t)*(x_t_t-x_b_t)+(y_t_t-y_b_t)*(y_t_t-y_b_t))
         self._thickness = interp.UnivariateSpline(x_space, t, k=5, s=1e-10)
+        self._max_thickness = np.max(t)
 
         # Calculate estimated top and bottom points
         y_c_pred = self._camber_line(x_space)
@@ -1013,6 +1019,18 @@ class Airfoil:
             CL0 = self.get_CL(alpha=alpha-dx, **kwargs)
 
             return (CL1-CL0)/(2*dx)
+
+
+    def get_max_thickness(self, **kwargs):
+        """Returns the maximum thickness of the airfoil, divided by the chord length.
+        """
+        return self._max_thickness
+
+
+    def get_max_camber(self, **kwargs):
+        """Returns the maximum camber of the airfoil, divided by the chord length.
+        """
+        return self._max_camber
 
 
     def get_outline_points(self, N=200, cluster=True, trailing_flap_deflection=0.0, trailing_flap_fraction=0.0, export=None, top_first=True, close_te=True):
