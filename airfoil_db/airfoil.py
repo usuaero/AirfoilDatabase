@@ -1058,7 +1058,7 @@ class Airfoil:
             The order of the coordinates when exported. Defaults to going from the trailing edge along the top and
             the around to the bottom.
 
-        clos_te : bool
+        close_te : bool
             Whether the top and bottom trailing edge points should be forced to be equal.
 
         Returns
