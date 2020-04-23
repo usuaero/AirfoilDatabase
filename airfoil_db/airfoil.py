@@ -220,7 +220,7 @@ class Airfoil:
                 if abs(self._m)<1e-10 or abs(self._p)<1e-10: # Symmetric
                     return np.zeros_like(x)
                 else:
-                    return np.where(x<self._p, 2*self._m/(self._p*self._p)*(self._p-x), 2*self._m/(1-self._p*self._p)*(self._p-x))
+                    return np.where(x<self._p, 2*self._m/(self._p*self._p)*(self._p-x), 2*self._m/((1-self._p)*(1-self._p))*(self._p-x))
 
             self._camber_deriv = camber_deriv
 
@@ -1070,8 +1070,128 @@ class Airfoil:
         # Check the geometry has been defined
         if self.geom_specification != "none":
 
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            # ZachEdit, zachs section to calculate the airfoil a different way
+            if self.geom_specification == "NACA" and self._trailing_flap_type == 'parabolic':
+                # Get flap parameters
+                df = trailing_flap_deflection
+                x_f = 1.0-trailing_flap_fraction
+                # set default vertical hinge height to camber line
+                y_f = self._input_dict.get("trailing_flap_hinge_height", None)
+                if y_f == None: y_f = self._camber_line(x_f)
+                
+                # calculate preliminary datapoints
+                theta_c = np.linspace(np.pi, -np.pi, N) # loop over entire airfoil from TE->top->LE->bottom->TE
+                if cluster:
+                    s = 0.5*(1.-np.cos(theta_c))  # copy of x_c that is unedited
+                    x_c = 0.5*(1.-np.cos(theta_c))
+                else:
+                    s = abs(np.linspace(-1., 1., N))
+                    x_c = abs(np.linspace(-1., 1., N))
+                
+                # calculate camber line and thickness
+                y_c = self._camber_line(x_c)
+                t = self._thickness(x_c)
+                dyc_dx = self._camber_deriv(x_c)
+                
+                if df != 0. and x_f < 1.:
+                    # Determine which camber points belong to the flap
+                    flap_ind = np.where(x_c>x_f)
+                    
+                    # Calculate the neutral line parameters
+                    l_n = np.sqrt(y_f*y_f+(1-x_f)*(1-x_f))
+                    phi_n = -np.arctan2(y_f, 1-x_f)
+                    
+                    # Calculate the location of the deflected trailing edge
+                    tan_df = np.tan(df)
+                    R = np.sqrt(4*tan_df*tan_df+1)+np.arcsinh(2*tan_df)/(2*tan_df)
+                    E_te = 2.0*l_n/R
+                    
+                    # Find E_p using secant method
+                    
+                    # Constants
+                    R_tan_df = R*tan_df
+                    R_tan_df2 = R_tan_df*R_tan_df
+                    E_0 = ((x_c-x_f)/(1-x_f)*l_n)[flap_ind]
+                    
+                    # Initial guesses
+                    E_p0 = E_te*E_0/l_n
+                    R0 = E_p0/2*np.sqrt(E_p0**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p0/l_n*R_tan_df)-E_0
+                    E_p1 = E_te*E_0/l_n+0.001
+                    R1 = E_p1/2*np.sqrt(E_p1**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p1/l_n*R_tan_df)-E_0
+                    
+                    # Suppress warnings because an error will often occur within the np.where that has no effect on computation
+                    np.seterr(invalid='ignore')
+                    
+                    # Iterate
+                    while (abs(R1)>1e-10).any():
+                        
+                        # Update value
+                        E_p2 = np.where(np.abs(R0-R1) != 0.0, E_p1-R1*(E_p0-E_p1)/(R0-R1), E_p1)
+                        
+                        # Get residual
+                        R2 = E_p2/2*np.sqrt(E_p2**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p2/l_n*R_tan_df)-E_0
+                        
+                        # Update for next iteration
+                        E_p0 = E_p1
+                        R0 = R1
+                        E_p1 = E_p2
+                        R1 = R2
+                    
+                    # return warnings
+                    np.seterr(invalid='warn')
+                    
+                    # Store final result
+                    E_p = E_p1
+                    n_p = -E_p*E_p/E_te*tan_df
+                    
+                    # Calculate deflected neutral line
+                    x_p = x_f+E_p*np.cos(phi_n)-n_p*np.sin(phi_n)
+                    y_p = y_f+E_p*np.sin(phi_n)+n_p*np.cos(phi_n)
+                    y_nl = y_f*(1-(x_c-x_f)/(1.0-x_f))
+                    dy_c = (y_c-y_nl)[flap_ind]
+                    
+                    # Calculate deflected camber line
+                    C = np.arctan(2*E_p/E_te*tan_df)
+                    x_c[flap_ind] = x_p+dy_c*np.sin(C)
+                    y_c[flap_ind] = y_p+dy_c*np.cos(C)
+                    
+                    dyc_dx[flap_ind] = (dyc_dx[flap_ind] - 2*E_p*tan_df/E_te) / (1 + 2*E_p*tan_df/E_te*dyc_dx[flap_ind])
+                    
+                # Outline points
+                X = x_c - t * np.sin(np.arctan(dyc_dx)) * np.sign(theta_c)
+                Y = y_c + t * np.cos(np.arctan(dyc_dx)) * np.sign(theta_c)
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+            
             # Case with no deflection or flap at all
-            if trailing_flap_deflection == 0.0 or trailing_flap_fraction == 0.0:
+            elif trailing_flap_deflection == 0.0 or trailing_flap_fraction == 0.0:
 
                 # Determine spacing of points
                 if cluster:
