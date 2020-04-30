@@ -119,12 +119,24 @@ class Airfoil:
         if self._type == "linear":
             self._aL0 = self._input_dict.get("aL0", 0.0)
             self._CLa = self._input_dict.get("CLa", 2*np.pi)
-            self._am0 = self._input_dict.get("am0", 0.0)
             self._Cma = self._input_dict.get("Cma", 0.0)
             self._CD0 = self._input_dict.get("CD0", 0.0)
             self._CD1 = self._input_dict.get("CD1", 0.0)
             self._CD2 = self._input_dict.get("CD2", 0.0)
             self._CL_max = self._input_dict.get("CL_max", np.inf)
+
+            # Calculate am0 if needed
+            self._am0 = self._input_dict.get("am0", None)
+            self._CmL0 = self._input_dict.get("CmL0", None)
+            if not (self._am0 is None or self._CmL0 is None):
+                raise IOError("Both 'am0' and 'CmL0' cannot be specified for airfoil {0}.".format(self.name))
+            if self._CmL0 is None:
+                self._CmL0 = 0.0
+            if self._am0 is None:
+                if self._Cma == 0.0:
+                    self._am0 = 0
+                else:
+                    self._am0 = self._aL0-self._CmL0/self._Cma
 
             self._CLM = self._input_dict.get("CLM", 0.0)
             self._CLRe = self._input_dict.get("CLRe", 0.0)
