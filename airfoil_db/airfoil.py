@@ -119,7 +119,7 @@ class Airfoil:
         if self._type == "linear":
             self._aL0 = self._input_dict.get("aL0", 0.0)
             self._CLa = self._input_dict.get("CLa", 2*np.pi)
-            self._CmL0 = self._input_dict.get("CmL0", 0.0)
+            self._am0 = self._input_dict.get("am0", 0.0)
             self._Cma = self._input_dict.get("Cma", 0.0)
             self._CD0 = self._input_dict.get("CD0", 0.0)
             self._CD1 = self._input_dict.get("CD1", 0.0)
@@ -761,7 +761,7 @@ class Airfoil:
             alpha = kwargs.get("alpha", 0.0)
             df = kwargs.get("trailing_flap", 0.0)
             flap_eff = kwargs.get("trailing_flap_efficiency", 1.0)
-            Cm =  self._Cma*alpha+self._CmL0+df*flap_eff
+            Cm =  self._Cma*(alpha-self._am0)+df*flap_eff
 
         # Generated/imported database
         elif self._type == "database":
@@ -863,6 +863,77 @@ class Airfoil:
 
                 # Check convergence
                 not_converged = np.where(np.array(np.abs(CL1)>1e-10))[0]
+
+            np.seterr()
+            return a2
+
+
+    def get_am0(self, **kwargs):
+        """Returns the zero-moment angle of attack
+
+        Parameters
+        ----------
+        Rey : float, optional
+            Reynolds number. Defaults to 100000.
+
+        Mach : float, optional
+            Mach number. Defaults to 0.
+
+        trailing_flap_deflection : float, optional
+            Trailing flap deflection in radians. Defaults to 0.
+
+        trailing_flap_fraction : float, optional
+            Trailing flap fraction of the chord length. Defaults to 0.
+
+        Returns
+        -------
+        float
+            Zero-moment angle of attack
+        """
+
+        # Linear airfoil model
+        if self._type == "linear":
+            return self._am0
+
+        # Database
+        elif self._type == "database" or self._type == "poly_fit":
+
+            # Use secant method in alpha to find a_L0
+            # Initialize secant method
+            a0 = 0.0
+            Cm0 = self.get_Cm(alpha=a0, **kwargs)
+            a0 = np.zeros_like(Cm0)
+            a1 = np.zeros_like(Cm0)+0.01
+            Cm1 = self.get_Cm(alpha=a1, **kwargs)
+            a2 = np.zeros_like(Cm1)
+
+            # If we're outside the domain of the database, aL0 should be nan
+            if a2.size == 1:
+                if np.isnan(Cm1):
+                    a2 = np.nan
+            else:
+                a2[np.where(np.isnan(Cm1))] = np.nan
+            
+            # Iterate
+            np.seterr(invalid='ignore')
+            not_converged = np.where(np.array(np.abs(Cm1)>1e-10))[0]
+            while not_converged.size>0:
+                
+                # Update estimate
+                if a2.size == 1:
+                    a2 = (a1-Cm1*(a0-a1)/(Cm0-Cm1))
+                else:
+                    a2[not_converged] = (a1-Cm1*(a0-a1)/(Cm0-Cm1))[not_converged]
+                Cm2 = self.get_Cm(alpha=a2, **kwargs)
+
+                # Update for next iteration
+                a0 = np.copy(a1)
+                Cm0 = np.copy(Cm1)
+                a1 = np.copy(a2)
+                Cm1 = np.copy(Cm2)
+
+                # Check convergence
+                not_converged = np.where(np.array(np.abs(Cm1)>1e-10))[0]
 
             np.seterr()
             return a2
@@ -1069,27 +1140,14 @@ class Airfoil:
 
         # Check the geometry has been defined
         if self.geom_specification != "none":
-
             
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            # ZachEdit, zachs section to calculate the airfoil a different way
+            # Zach's method of determining NACA airfoils with deflected parabolic flaps
             if self.geom_specification == "NACA" and self._trailing_flap_type == 'parabolic':
                 # Get flap parameters
                 df = trailing_flap_deflection
                 x_f = 1.0-trailing_flap_fraction
                 # set default vertical hinge height to camber line
-                y_f = self._input_dict.get("trailing_flap_hinge_height", None)
-                if y_f == None: y_f = self._camber_line(x_f)
+                y_f = self._input_dict.get("trailing_flap_hinge_height", self._camber_line(x_f))
                 
                 # calculate preliminary datapoints
                 theta_c = np.linspace(np.pi, -np.pi, N) # loop over entire airfoil from TE->top->LE->bottom->TE
@@ -1172,23 +1230,6 @@ class Airfoil:
                 # Outline points
                 X = x_c - t * np.sin(np.arctan(dyc_dx)) * np.sign(theta_c)
                 Y = y_c + t * np.cos(np.arctan(dyc_dx)) * np.sign(theta_c)
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
             
             # Case with no deflection or flap at all
             elif trailing_flap_deflection == 0.0 or trailing_flap_fraction == 0.0:
