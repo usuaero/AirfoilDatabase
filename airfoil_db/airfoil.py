@@ -105,7 +105,7 @@ class Airfoil:
         # Load input dict
         if isinstance(airfoil_input, str):
             # Load JSON object
-            with open(airfoil_input) as json_handle:
+            with open(airfoil_input, 'r') as json_handle:
                 self._input_dict = json.load(json_handle)
         elif isinstance(airfoil_input, dict):
             self._input_dict = airfoil_input
@@ -758,6 +758,9 @@ class Airfoil:
         trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
 
+        trailing_flap_moment_deriv : float or ndarray, optional
+            Change in section moment with respect to trailing flap deflection. Defaults to 0.
+
         trailing_flap_fraction : float, optional
             Trailing flap fraction of the chord length. Defaults to 0.
 
@@ -772,8 +775,8 @@ class Airfoil:
         if self._type == "linear":
             alpha = kwargs.get("alpha", 0.0)
             df = kwargs.get("trailing_flap", 0.0)
-            flap_eff = kwargs.get("trailing_flap_efficiency", 1.0)
-            Cm =  self._Cma*(alpha-self._am0)+df*flap_eff
+            flap_deriv = kwargs.get("trailing_flap_moment_deriv", 0.0)
+            Cm =  self._Cma*(alpha-self._am0)+df*flap_deriv
 
         # Generated/imported database
         elif self._type == "database":
