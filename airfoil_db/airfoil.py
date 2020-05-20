@@ -656,9 +656,6 @@ class Airfoil:
         trailing_flap_fraction : float, optional
             Trailing flap fraction of the chord length. Defaults to 0.
 
-        trailing_flap_efficiency : float, optional
-            Trailing flap efficiency. Defaults to 1.0.
-
         Returns
         -------
         float or ndarray
@@ -670,11 +667,15 @@ class Airfoil:
 
             # Get params
             alpha = kwargs.get("alpha", 0.0)
-            trailing_flap = kwargs.get("trailing_flap_deflection", 0.0)
-            trailing_flap_efficiency = kwargs.get("trailing_flap_efficiency", 1.0)
+            d_f = kwargs.get("trailing_flap_deflection", 0.0)
+            c_f = kwargs.get("trailing_flap_fraction", 0.0)
 
             # Calculate lift coefficient
-            CL = self._CLa*(alpha-self._aL0+trailing_flap*trailing_flap_efficiency)
+            if np.array(d_f == 0.0).all() or np.array(c_f == 0.0).all():
+                CL = self._CLa*(alpha-self._aL0)
+            else:
+                delta_a_d_f = self._get_flap_influence(c_f, d_f)
+                CL = self._CLa*(alpha-self._aL0+delta_a_d_f)
             
             # Saturate
             if isinstance(CL, np.ndarray):
@@ -691,6 +692,16 @@ class Airfoil:
             CL = self._get_polynomial_data(0, **kwargs)
 
         return CL
+
+
+    def _get_flap_influence(self, c_f, d_f):
+        # Returns the influence of the flap on the effective angle of attack
+        # From Phillips *Mechanics of Flight* Ch. 1, Sec. 7
+        theta_f = np.arccos(2.0*c_f-1.0)
+        eps_flap_ideal = 1.0-(theta_f-np.sin(theta_f))/np.pi
+        hinge_eff = 3.9598*np.arctan((c_f+0.006527)*89.2574+4.898015)-5.18786
+        flap_eff = np.where(np.abs(d_f)>0.19198621771937624, -0.00015215690914822364*d_f+1.09589743589744, 1.0)
+        return hinge_eff*flap_eff*eps_flap_ideal*d_f
 
 
     def get_CD(self, **kwargs):
@@ -714,19 +725,16 @@ class Airfoil:
         trailing_flap_fraction : float, optional
             Trailing flap fraction of the chord length. Defaults to 0.
 
-        trailing_flap_efficiency : float, optional
-            Trailing flap efficiency. Defaults to 1.0.
-
         Returns
         -------
         float or ndarray
             Drag coefficient
         """
         if self._type == "linear":
-            df = kwargs.pop("trailing_flap", 0.0)
-            kwargs.pop("trailing_flap_efficiency", None)
+            d_f = kwargs.pop("trailing_flap_deflection", 0.0)
+            c_f = kwargs.get("trailing_flap_fraction", 0.0)
             CL = self.get_CL(**kwargs)
-            CD_flap = 0.002*np.abs(df)*180/np.pi # A rough estimate for flaps
+            CD_flap = 0.002*np.abs(np.degrees(d_f)) # A *very* rough estimate for flaps
             CD = self._CD0+self._CD1*CL+self._CD2*CL**2+CD_flap
 
         # Generated/imported database
@@ -764,19 +772,27 @@ class Airfoil:
         trailing_flap_fraction : float, optional
             Trailing flap fraction of the chord length. Defaults to 0.
 
-        trailing_flap_efficiency : float, optional
-            Trailing flap efficiency. Defaults to 1.0.
-
         Returns
         -------
         float or ndarray
             Moment coefficient
         """
+
+        # Linear type
         if self._type == "linear":
+
+            # Get parameters
             alpha = kwargs.get("alpha", 0.0)
-            df = kwargs.get("trailing_flap", 0.0)
-            flap_deriv = kwargs.get("trailing_flap_moment_deriv", 0.0)
-            Cm =  self._Cma*(alpha-self._am0)+df*flap_deriv
+            d_f = kwargs.get("trailing_flap_deflection", 0.0)
+            c_f = kwargs.get("trailing_flap_fraction", 0.0)
+
+            # No control deflection
+            if np.array(d_f == 0.0).all() or np.array(c_f == 0.0).all():
+                Cm = self._Cma*(alpha-self._am0)
+            else:
+                theta_f = np.arccos(2*c_f-1)
+                Cm_df = (np.sin(2*theta_f)-2*np.sin(theta_f))/4
+                Cm = self._Cma*(alpha-self._am0)+Cm_df*d_f
 
         # Generated/imported database
         elif self._type == "database":
@@ -813,7 +829,7 @@ class Airfoil:
 
 
     def get_aL0(self, **kwargs):
-        """Returns the zero-lift angle of attack
+        """Returns the zero-lift angle of attack, taking flap deflection into account.
 
         Parameters
         ----------
@@ -837,7 +853,19 @@ class Airfoil:
 
         # Linear airfoil model
         if self._type == "linear":
-            return self._aL0
+
+            # Get params
+            d_f = kwargs.get("trailing_flap_deflection", 0.0)
+            c_f = kwargs.get("trailing_flap_fraction", 0.0)
+
+            # Calculate lift coefficient
+            if np.array(d_f == 0.0).all() or np.array(c_f == 0.0).all():
+                aL0 = self._aL0
+            else:
+                delta_a_d_f = self._get_flap_influence(c_f, d_f)
+                aL0 = self._aL0-delta_a_d_f
+            
+            return aL0
 
         # Database
         elif self._type == "database" or self._type == "poly_fit":
@@ -1159,7 +1187,7 @@ class Airfoil:
             # Zach's method of determining NACA airfoils with deflected parabolic flaps
             if self.geom_specification == "NACA" and self._trailing_flap_type == 'parabolic':
                 # Get flap parameters
-                df = trailing_flap_deflection
+                d_f = trailing_flap_deflection
                 x_f = 1.0-trailing_flap_fraction
                 # set default vertical hinge height to camber line
                 y_f = self._input_dict.get("trailing_flap_hinge_height", self._camber_line(x_f))
@@ -1178,7 +1206,7 @@ class Airfoil:
                 t = self._thickness(x_c)
                 dyc_dx = self._camber_deriv(x_c)
                 
-                if df != 0. and x_f < 1.:
+                if d_f != 0. and x_f < 1.:
                     # Determine which camber points belong to the flap
                     flap_ind = np.where(x_c>x_f)
                     
@@ -1187,7 +1215,7 @@ class Airfoil:
                     phi_n = -np.arctan2(y_f, 1-x_f)
                     
                     # Calculate the location of the deflected trailing edge
-                    tan_df = np.tan(df)
+                    tan_df = np.tan(d_f)
                     R = np.sqrt(4*tan_df*tan_df+1)+np.arcsinh(2*tan_df)/(2*tan_df)
                     E_te = 2.0*l_n/R
                     
@@ -1274,7 +1302,7 @@ class Airfoil:
             else:
 
                 # Get flap parameters
-                df = trailing_flap_deflection
+                d_f = trailing_flap_deflection
                 x_f = 1.0-trailing_flap_fraction
                 y_f = self._trailing_flap_hinge_height
 
@@ -1299,8 +1327,8 @@ class Airfoil:
                     # Calculate deflected camber line Eqs. (8-10) in "Geometry and Aerodynamic Performance of Parabolic..." by Hunsaker, et al. 2018
                     r = np.sqrt((y_c-y_f)*(y_c-y_f)+(x_c-x_f)*(x_c-x_f))
                     psi = np.arctan((y_c-y_f)/(x_c-x_f))
-                    x_c[flap_ind] = x_f+(r*np.cos(df-psi))[flap_ind]
-                    y_c[flap_ind] = y_f-(r*np.sin(df-psi))[flap_ind]
+                    x_c[flap_ind] = x_f+(r*np.cos(d_f-psi))[flap_ind]
+                    y_c[flap_ind] = y_f-(r*np.sin(d_f-psi))[flap_ind]
 
                 # Parabolic flap from "Geometry and Aerodynamic Performance of Parabolic..." by Hunsaker, et al. 2018
                 elif self._trailing_flap_type == "parabolic":
@@ -1310,7 +1338,7 @@ class Airfoil:
                     phi_n = -np.arctan2(y_f, 1-x_f)
 
                     # Calculate the location of the deflected trailing edge
-                    tan_df = np.tan(df)
+                    tan_df = np.tan(d_f)
                     R = np.sqrt(4*tan_df*tan_df+1)+np.arcsinh(2*tan_df)/(2*tan_df)
                     E_te = 2.0*l_n/R
 
@@ -1380,11 +1408,11 @@ class Airfoil:
                 X_t, Y_t, num_trimmed_from_top = self._trim_surface(X_t, Y_t, "forward")
 
                 # Check if we need to fill anything in
-                fill_top = (df > 0 and y_f < y_h_t) or (df < 0 and y_f > y_h_t)
+                fill_top = (d_f > 0 and y_f < y_h_t) or (d_f < 0 and y_f > y_h_t)
                 if fill_top:
                     X_t, Y_t = self._fill_surface(X_t, Y_t, x_f, y_f, r_t, num_trimmed_from_top)
 
-                fill_bot = (df > 0 and y_f < y_h_b) or (df < 0 and y_f > y_h_b)
+                fill_bot = (d_f > 0 and y_f < y_h_b) or (d_f < 0 and y_f > y_h_b)
                 if fill_bot:
                     X_b, Y_b = self._fill_surface(X_b, Y_b, x_f, y_f, r_b, num_trimmed_from_bot)
 
