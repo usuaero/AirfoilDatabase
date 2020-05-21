@@ -124,6 +124,8 @@ class Airfoil:
             self._CD1 = self._input_dict.get("CD1", 0.0)
             self._CD2 = self._input_dict.get("CD2", 0.0)
             self._CL_max = self._input_dict.get("CL_max", np.inf)
+            if abs(self._CL_max) < 1e-10:
+                warnings.warn("You have specified a maximum lift coefficient of 0. Are you sure you want to do this?...")
 
             # Calculate am0 if needed
             self._am0 = self._input_dict.get("am0", None)
