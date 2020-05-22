@@ -702,7 +702,7 @@ class Airfoil:
         theta_f = np.arccos(2.0*c_f-1.0)
         eps_flap_ideal = 1.0-(theta_f-np.sin(theta_f))/np.pi
         hinge_eff = 3.9598*np.arctan((c_f+0.006527)*89.2574+4.898015)-5.18786
-        flap_eff = np.where(np.abs(d_f)>0.19198621771937624, -0.00015215690914822364*d_f+1.09589743589744, 1.0)
+        flap_eff = np.where(np.abs(d_f)>0.19198621771937624, -0.4995016675499485*d_f+1.09589743589744, 1.0)
         return hinge_eff*flap_eff*eps_flap_ideal*d_f
 
 
