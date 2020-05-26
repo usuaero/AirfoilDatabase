@@ -20,6 +20,10 @@ airfoil_input = {
 
 airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
 #airfoil.get_outline_points(trailing_flap_deflection=-10.0)
+print(airfoil.get_thickness(0.5))
+print(airfoil.get_thickness(np.linspace(0.0, 1.0, 10)))
+print(airfoil.get_camber(0.5))
+print(airfoil.get_camber(np.linspace(0.0, 1.0, 10)))
 
 dofs = {
     "alpha" : {
@@ -51,8 +55,8 @@ dofs = {
 }
 
 # Generate or import database
-airfoil.generate_database(degrees_of_freedom=dofs, max_iter=10000, show_xfoil_output=False)
-airfoil.export_database(filename="christian_database.txt")
+#airfoil.generate_database(degrees_of_freedom=dofs, max_iter=10000, show_xfoil_output=False)
+#airfoil.export_database(filename="christian_database.txt")
 #airfoil.import_database(filename="database.txt")
 
 # Fit orders
@@ -79,38 +83,38 @@ Cm_fit_orders = {
 
 # Generate or import fits
 #airfoil.generate_polynomial_fit(CL_degrees=CL_fit_orders, CD_degrees=CD_fit_orders, Cm_degrees=Cm_fit_orders)
-airfoil.generate_polynomial_fit(CL_degrees="auto", CD_degrees="auto", Cm_degrees="auto", max_order=6)
-airfoil.export_polynomial_fits(filename="christian_database.json")
+#airfoil.generate_polynomial_fit(CL_degrees="auto", CD_degrees="auto", Cm_degrees="auto", max_order=6)
+#airfoil.export_polynomial_fits(filename="christian_database.json")
 #airfoil.import_polynomial_fits(filename="database.json")
 
-# Compare interpolation and fits
-alphas = np.radians(np.linspace(-10, 10, 20))
-flaps = np.radians(np.linspace(10, -10, 20))
-Re = 200000
-c_tf = 0.0
-
-fig = plt.figure(figsize=plt.figaspect(1.0))
-ax = fig.gca(projection='3d')
-for a in alphas:
-
-    # Interpolation results
-    airfoil.set_type("database")
-    CL_int = airfoil.get_CL(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
-    CD_int = airfoil.get_CD(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
-
-    # Polynomial results
-    airfoil.set_type("poly_fit")
-    CL_fit = airfoil.get_CL(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
-    CD_fit = airfoil.get_CD(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
-
-    # Plot
-    alpha_graph = np.full(20, a)
-    #ax.plot(alpha_graph, flaps, CL_int, 'rx')
-    #ax.plot(alpha_graph, flaps, CL_fit, 'b-')
-    ax.plot(alpha_graph, flaps, CD_int, 'x', color='orange')
-    ax.plot(alpha_graph, flaps, CD_fit, 'g-')
-
-ax.set_xlabel("Angle of Attack")
-ax.set_ylabel("Flap Deflection")
-ax.set_zlabel("CL")
-plt.show()
+## Compare interpolation and fits
+#alphas = np.radians(np.linspace(-10, 10, 20))
+#flaps = np.radians(np.linspace(10, -10, 20))
+#Re = 200000
+#c_tf = 0.0
+#
+#fig = plt.figure(figsize=plt.figaspect(1.0))
+#ax = fig.gca(projection='3d')
+#for a in alphas:
+#
+#    # Interpolation results
+#    airfoil.set_type("database")
+#    CL_int = airfoil.get_CL(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
+#    CD_int = airfoil.get_CD(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
+#
+#    # Polynomial results
+#    airfoil.set_type("poly_fit")
+#    CL_fit = airfoil.get_CL(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
+#    CD_fit = airfoil.get_CD(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
+#
+#    # Plot
+#    alpha_graph = np.full(20, a)
+#    #ax.plot(alpha_graph, flaps, CL_int, 'rx')
+#    #ax.plot(alpha_graph, flaps, CL_fit, 'b-')
+#    ax.plot(alpha_graph, flaps, CD_int, 'x', color='orange')
+#    ax.plot(alpha_graph, flaps, CD_fit, 'g-')
+#
+#ax.set_xlabel("Angle of Attack")
+#ax.set_ylabel("Flap Deflection")
+#ax.set_zlabel("CL")
+#plt.show()

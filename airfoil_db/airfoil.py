@@ -938,7 +938,18 @@ class Airfoil:
 
         # Linear airfoil model
         if self._type == "linear":
-            return self._am0
+
+            # Get params
+            d_f = kwargs.get("trailing_flap_deflection", 0.0)
+            c_f = kwargs.get("trailing_flap_fraction", 0.0)
+
+            # No control deflection or no moment slope
+            if np.array(d_f == 0.0).all() or np.array(c_f == 0.0).all() or self._Cma == 0.0:
+                return self._am0
+            else:
+                theta_f = np.arccos(2*c_f-1)
+                Cm_df = (np.sin(2*theta_f)-2*np.sin(theta_f))/4
+                return self._am0-Cm_df*d_f/self._Cma
 
         # Database
         elif self._type == "database" or self._type == "poly_fit":
@@ -1137,10 +1148,48 @@ class Airfoil:
             return (CL1-CL0)/(2*dx)
 
 
+    def get_thickness(self, x):
+        """Returns the thickness normal to the camber line at the specified x location(s).
+
+        Parameters
+        ----------
+        x : float or ndarray
+            x location(s) at which to get the thickness.
+
+        Returns
+        -------
+        float or ndarray
+            Thickness as a percentage of the chord.
+        """
+        if isinstance(x, float):
+            return self._thickness(x).item()
+        else:
+            return self._thickness(x)
+
+
     def get_max_thickness(self):
         """Returns the maximum thickness of the airfoil, divided by the chord length.
         """
         return self._max_thickness
+
+
+    def get_camber(self, x):
+        """Returns the y coordinate(s) of the camber line at the specified x location(s).
+
+        Parameters
+        ----------
+        x : float or ndarray
+            x location(s) at which to get the thickness.
+
+        Returns
+        -------
+        float or ndarray
+            Camber line y coordinate(s) as a percentage of the chord.
+        """
+        if isinstance(x, float):
+            return self._camber_line(x).item()
+        else:
+            return self._camber_line(x)
 
 
     def get_max_camber(self):
