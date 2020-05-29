@@ -434,6 +434,7 @@ class Airfoil:
         # Calculate thickness
         y_c = self._camber_line(x_space)
         dyc_dx= np.gradient(y_c, x_space)
+        self._camber_deriv = interp.UnivariateSpline(x_space, dyc_dx, k=5, s=1e-10)
         b = -1.0/dyc_dx
 
         # Find points on the surface to determine the thickness
@@ -680,10 +681,11 @@ class Airfoil:
                 CL = self._CLa*(alpha-self._aL0+delta_a_d_f)
             
             # Saturate
-            if isinstance(CL, np.ndarray):
-                CL = np.where((CL > self._CL_max) | (CL < -self._CL_max), np.sign(CL)*self._CL_max, CL)
-            elif CL > self._CL_max or CL < -self._CL_max:
-                CL = np.sign(CL)*self._CL_max
+            with np.errstate(invalid='ignore'):
+                if isinstance(CL, np.ndarray):
+                    CL = np.where((CL > self._CL_max) | (CL < -self._CL_max), np.sign(CL)*self._CL_max, CL)
+                elif CL > self._CL_max or CL < -self._CL_max:
+                    CL = np.sign(CL)*self._CL_max
 
         # Generated/imported database
         elif self._type == "database":
@@ -734,7 +736,6 @@ class Airfoil:
         """
         if self._type == "linear":
             d_f = kwargs.pop("trailing_flap_deflection", 0.0)
-            c_f = kwargs.get("trailing_flap_fraction", 0.0)
             CL = self.get_CL(**kwargs)
             CD_flap = 0.002*np.abs(np.degrees(d_f)) # A *very* rough estimate for flaps
             CD = self._CD0+self._CD1*CL+self._CD2*CL**2+CD_flap
@@ -1198,7 +1199,7 @@ class Airfoil:
         return self._max_camber
 
 
-    def get_outline_points(self, N=200, cluster=True, trailing_flap_deflection=0.0, trailing_flap_fraction=0.0, export=None, top_first=True, close_te=True):
+    def get_outline_points(self, **kwargs):
         """Returns an array of outline points showing the geometry of the airfoil.
 
         Parameters
@@ -1226,6 +1227,9 @@ class Airfoil:
         close_te : bool
             Whether the top and bottom trailing edge points should be forced to be equal.
 
+        plot : bool
+            Whether a plot of the outline points should be displayed once computed. Defaults to False.
+
         Returns
         -------
         ndarray
@@ -1234,141 +1238,34 @@ class Airfoil:
 
         # Check the geometry has been defined
         if self.geom_specification != "none":
+
+            # Get kwargs
+            N = kwargs.get("N", 200)
+            cluster = kwargs.get("cluster", True)
+            trailing_flap_deflection = kwargs.get("trailing_flap_deflection", 0.0)
+            trailing_flap_fraction = kwargs.get("trailing_flap_fraction", 0.0)
+            close_te = kwargs.get("close_te", True)
             
-            # Zach's method of determining NACA airfoils with deflected parabolic flaps
-            if self.geom_specification == "NACA" and self._trailing_flap_type == 'parabolic':
-                # Get flap parameters
-                d_f = trailing_flap_deflection
-                x_f = 1.0-trailing_flap_fraction
-                # set default vertical hinge height to camber line
-                y_f = self._input_dict.get("trailing_flap_hinge_height", self._camber_line(x_f))
-                
-                # calculate preliminary datapoints
-                theta_c = np.linspace(np.pi, -np.pi, N) # loop over entire airfoil from TE->top->LE->bottom->TE
-                if cluster:
-                    s = 0.5*(1.-np.cos(theta_c))  # copy of x_c that is unedited
-                    x_c = 0.5*(1.-np.cos(theta_c))
-                else:
-                    s = abs(np.linspace(-1., 1., N))
-                    x_c = abs(np.linspace(-1., 1., N))
-                
-                # calculate camber line and thickness
-                y_c = self._camber_line(x_c)
-                t = self._thickness(x_c)
-                dyc_dx = self._camber_deriv(x_c)
-                
-                if d_f != 0. and x_f < 1.:
-                    # Determine which camber points belong to the flap
-                    flap_ind = np.where(x_c>x_f)
-                    
-                    # Calculate the neutral line parameters
-                    l_n = np.sqrt(y_f*y_f+(1-x_f)*(1-x_f))
-                    phi_n = -np.arctan2(y_f, 1-x_f)
-                    
-                    # Calculate the location of the deflected trailing edge
-                    tan_df = np.tan(d_f)
-                    R = np.sqrt(4*tan_df*tan_df+1)+np.arcsinh(2*tan_df)/(2*tan_df)
-                    E_te = 2.0*l_n/R
-                    
-                    # Find E_p using secant method
-                    
-                    # Constants
-                    R_tan_df = R*tan_df
-                    R_tan_df2 = R_tan_df*R_tan_df
-                    E_0 = ((x_c-x_f)/(1-x_f)*l_n)[flap_ind]
-                    
-                    # Initial guesses
-                    E_p0 = E_te*E_0/l_n
-                    R0 = E_p0/2*np.sqrt(E_p0**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p0/l_n*R_tan_df)-E_0
-                    E_p1 = E_te*E_0/l_n+0.001
-                    R1 = E_p1/2*np.sqrt(E_p1**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p1/l_n*R_tan_df)-E_0
-                    
-                    # Suppress warnings because an error will often occur within the np.where that has no effect on computation
-                    np.seterr(invalid='ignore')
-                    
-                    # Iterate
-                    while (abs(R1)>1e-10).any():
-                        
-                        # Update value
-                        E_p2 = np.where(np.abs(R0-R1) != 0.0, E_p1-R1*(E_p0-E_p1)/(R0-R1), E_p1)
-                        
-                        # Get residual
-                        R2 = E_p2/2*np.sqrt(E_p2**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p2/l_n*R_tan_df)-E_0
-                        
-                        # Update for next iteration
-                        E_p0 = E_p1
-                        R0 = R1
-                        E_p1 = E_p2
-                        R1 = R2
-                    
-                    # return warnings
-                    np.seterr(invalid='warn')
-                    
-                    # Store final result
-                    E_p = E_p1
-                    n_p = -E_p*E_p/E_te*tan_df
-                    
-                    # Calculate deflected neutral line
-                    x_p = x_f+E_p*np.cos(phi_n)-n_p*np.sin(phi_n)
-                    y_p = y_f+E_p*np.sin(phi_n)+n_p*np.cos(phi_n)
-                    y_nl = y_f*(1-(x_c-x_f)/(1.0-x_f))
-                    dy_c = (y_c-y_nl)[flap_ind]
-                    
-                    # Calculate deflected camber line
-                    C = np.arctan(2*E_p/E_te*tan_df)
-                    x_c[flap_ind] = x_p+dy_c*np.sin(C)
-                    y_c[flap_ind] = y_p+dy_c*np.cos(C)
-                    
-                    dyc_dx[flap_ind] = (dyc_dx[flap_ind] - 2*E_p*tan_df/E_te) / (1 + 2*E_p*tan_df/E_te*dyc_dx[flap_ind])
-                    
-                # Outline points
-                X = x_c - t * np.sin(np.arctan(dyc_dx)) * np.sign(theta_c)
-                Y = y_c + t * np.cos(np.arctan(dyc_dx)) * np.sign(theta_c)
+            # Zach's method of determining NACA airfoils with deflected parabolic flaps (actually works really well for all of them...)
+
+            # Get flap parameters
+            d_f = trailing_flap_deflection
+            x_f = 1.0-trailing_flap_fraction
+            y_f = self._input_dict.get("trailing_flap_hinge_height", self._camber_line(x_f))
             
-            # Case with no deflection or flap at all
-            elif trailing_flap_deflection == 0.0 or trailing_flap_fraction == 0.0:
-
-                # Determine spacing of points
-                if cluster:
-                    # Divide points between top and bottom
-                    N_t = int(N*self._s_le)
-                    N_b = N-N_t
-                    
-                    # Create distributions using cosine clustering
-                    theta_t = np.linspace(0.0, np.pi, N_t)
-                    s_t = 0.5*(1-np.cos(theta_t))*self._s_le
-                    theta_b = np.linspace(0.0, np.pi, N_b)
-                    s_b = 0.5*(1-np.cos(theta_b))*(1-self._s_le-0.0001)+self._s_le+0.0001
-                    # I tack on the miniscule offset to keep it from generating 2 points at exactly the
-                    # leading edge. Xfoil seems to not like that...
-                    s = np.concatenate([s_t, s_b])
-                else:
-                    s = np.linspace(0.0, 1.0, N)
-
-                # Get outline
-                X = self._x_outline(s)
-                Y = self._y_outline(s)
-
-            # Trailing flap deflection
+            # Calculate distributions
+            theta_c = np.linspace(np.pi, -np.pi, N) # Loop over entire airfoil from TE->top->LE->bottom->TE
+            if cluster:
+                x_c = 0.5*(1.0-np.cos(theta_c))
             else:
-
-                # Get flap parameters
-                d_f = trailing_flap_deflection
-                x_f = 1.0-trailing_flap_fraction
-                y_f = self._trailing_flap_hinge_height
-
-                # Get undeformed camber points
-                if cluster:
-                    theta_c = np.linspace(0.0, np.pi, N//2)
-                    x_c = 0.5*(1-np.cos(theta_c))
-                else:
-                    x_c = np.linspace(0.0, 1.0, N//2)
-                
-                y_c = self._camber_line(x_c)
-
-                # Get thickness before we deform the camber
-                t = self._thickness(x_c)
-
+                x_c = abs(np.linspace(-1.0, 1.0, N))
+            
+            # Calculate undeformed camber line and thickness
+            y_c = self._camber_line(x_c)
+            t = self._thickness(x_c)
+            dyc_dx = self._camber_deriv(x_c)
+            
+            if d_f != 0.0 and x_f < 1.0:
                 # Determine which camber points belong to the flap
                 flap_ind = np.where(x_c>x_f)
 
@@ -1380,159 +1277,220 @@ class Airfoil:
                     psi = np.arctan((y_c-y_f)/(x_c-x_f))
                     x_c[flap_ind] = x_f+(r*np.cos(d_f-psi))[flap_ind]
                     y_c[flap_ind] = y_f-(r*np.sin(d_f-psi))[flap_ind]
+                    dyc_dx[flap_ind] = np.gradient(y_c[flap_ind], x_c[flap_ind], edge_order=2)
 
-                # Parabolic flap from "Geometry and Aerodynamic Performance of Parabolic..." by Hunsaker, et al. 2018
-                elif self._trailing_flap_type == "parabolic":
-
+                else:
+                    # Parabolic flap from "Geometry and Aerodynamic Performance of Parabolic..." by Hunsaker, et al. 2018
+                
                     # Calculate the neutral line parameters
                     l_n = np.sqrt(y_f*y_f+(1-x_f)*(1-x_f))
                     phi_n = -np.arctan2(y_f, 1-x_f)
-
+                
                     # Calculate the location of the deflected trailing edge
                     tan_df = np.tan(d_f)
                     R = np.sqrt(4*tan_df*tan_df+1)+np.arcsinh(2*tan_df)/(2*tan_df)
                     E_te = 2.0*l_n/R
-
+                
                     # Find E_p using secant method
-
+                
                     # Constants
                     R_tan_df = R*tan_df
                     R_tan_df2 = R_tan_df*R_tan_df
                     E_0 = ((x_c-x_f)/(1-x_f)*l_n)[flap_ind]
-
+                
                     # Initial guesses
                     E_p0 = E_te*E_0/l_n
                     R0 = E_p0/2*np.sqrt(E_p0**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p0/l_n*R_tan_df)-E_0
                     E_p1 = E_te*E_0/l_n+0.001
                     R1 = E_p1/2*np.sqrt(E_p1**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p1/l_n*R_tan_df)-E_0
+                
+                    # Suppress warnings because an error will often occur within the np.where that has no effect on computation
+                    with np.errstate(invalid='ignore'):
+                
+                        # Iterate
+                        while (abs(R1)>1e-10).any():
 
-                    # Iterate
-                    while (abs(R1)>1e-10).any():
-
-                        # Update value
-                        # Suppress warnings because an error will often occur within the np.where that has no effect on computation
-                        with np.errstate(invalid='ignore'):
+                            # Update value
                             E_p2 = np.where(np.abs(R0-R1) != 0.0, E_p1-R1*(E_p0-E_p1)/(R0-R1), E_p1)
 
-                        # Get residual
-                        R2 = E_p2/2*np.sqrt(E_p2**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p2/l_n*R_tan_df)-E_0
+                            # Get residual
+                            R2 = E_p2/2*np.sqrt(E_p2**2/l_n**2*R_tan_df2+1)+l_n/(2*R_tan_df)*np.arcsinh(E_p2/l_n*R_tan_df)-E_0
 
-                        # Update for next iteration
-                        E_p0 = E_p1
-                        R0 = R1
-                        E_p1 = E_p2
-                        R1 = R2
-
+                            # Update for next iteration
+                            E_p0 = E_p1
+                            R0 = R1
+                            E_p1 = E_p2
+                            R1 = R2
+                
                     # Store final result
                     E_p = E_p1
                     n_p = -E_p*E_p/E_te*tan_df
-
+                
                     # Calculate deflected neutral line
                     x_p = x_f+E_p*np.cos(phi_n)-n_p*np.sin(phi_n)
                     y_p = y_f+E_p*np.sin(phi_n)+n_p*np.cos(phi_n)
                     y_nl = y_f*(1-(x_c-x_f)/(1.0-x_f))
                     dy_c = (y_c-y_nl)[flap_ind]
-
+                
                     # Calculate deflected camber line
                     C = np.arctan(2*E_p/E_te*tan_df)
                     x_c[flap_ind] = x_p+dy_c*np.sin(C)
                     y_c[flap_ind] = y_p+dy_c*np.cos(C)
+                
+                    dyc_dx[flap_ind] = (dyc_dx[flap_ind] - 2*E_p*tan_df/E_te) / (1 + 2*E_p*tan_df/E_te*dyc_dx[flap_ind])
+                
+            # Outline points
+            X = x_c-t*np.sin(np.arctan(dyc_dx))*np.sign(theta_c)
+            Y = y_c+t*np.cos(np.arctan(dyc_dx))*np.sign(theta_c)
 
-                else:
-                    raise IOError("{0} is not an allowable flap type.".format(self._trailing_flap_type))
+            # Trim overlapping points from linear flap deflection
+            if self._trailing_flap_type == "linear" and d_f != 0.0 and x_f < 1.0:
 
-                # Calculate camber line gradient
-                dyc_dx = np.gradient(y_c, x_c, edge_order=2)
+                # Get indices of top and bottom points
+                top_ind = theta_c > 0.0
+                bot_ind = theta_c <= 0.0
 
-                # Outline points
-                X_t = x_c-t*np.sin(np.arctan(dyc_dx))
-                Y_t = y_c+t*np.cos(np.arctan(dyc_dx))
-                X_b = x_c+t*np.sin(np.arctan(dyc_dx))
-                Y_b = y_c-t*np.cos(np.arctan(dyc_dx))
+                # Split points into top and bottom
+                X_t = X[top_ind]
+                Y_t = Y[top_ind]
+                X_b = X[bot_ind]
+                Y_b = Y[bot_ind]
 
                 # Find the point on the surface where the hinge breaks
-                _, y_h_t, r_t = self._get_closest_point_on_surface(x_f, y_f, "top")
-                _, y_h_b, r_b = self._get_closest_point_on_surface(x_f, y_f, "bottom")
+                # These equations determine the slope of the line bisecting the angle between the camber line before the flap
+                # and the camber line of the flap
+                psi_prime = np.pi+np.arctan(self._camber_deriv(x_f)) # Angle to the camber line before the flap
+                d_f_prime = -d_f+np.arctan(self._camber_deriv(x_f)) # Angle to the camber line after the flap
+                phi = 0.5*(psi_prime+d_f_prime)
+                b = np.tan(phi)
+                x_t_break, y_t_break, _ = self._get_intersection_point(x_f, y_f, b, "top")
+                x_b_break, y_b_break, _ = self._get_intersection_point(x_f, y_f, b, "bottom")
 
                 # Trim overlapping points off of both surfaces
                 X_b, Y_b, num_trimmed_from_bot = self._trim_surface(X_b, Y_b, "forward")
-                X_t, Y_t, num_trimmed_from_top = self._trim_surface(X_t, Y_t, "forward")
+                X_t, Y_t, num_trimmed_from_top = self._trim_surface(X_t, Y_t, "backward")
 
-                # Check if we need to fill anything in
-                fill_top = (d_f > 0 and y_f < y_h_t) or (d_f < 0 and y_f > y_h_t)
-                if fill_top:
-                    X_t, Y_t = self._fill_surface(X_t, Y_t, x_f, y_f, r_t, num_trimmed_from_top)
+                # Check if we need to fill anything in so the number of outline points remains the same
+                if num_trimmed_from_bot>0:
+                    r_t = self._get_cart_dist(x_t_break, y_t_break, x_f, y_f)
+                    X_t, Y_t = self._fill_surface(X_t, Y_t, x_f, y_f, r_t, x_t_break, num_trimmed_from_bot, "backward")
 
-                fill_bot = (d_f > 0 and y_f < y_h_b) or (d_f < 0 and y_f > y_h_b)
-                if fill_bot:
-                    X_b, Y_b = self._fill_surface(X_b, Y_b, x_f, y_f, r_b, num_trimmed_from_bot)
-
-                # Make sure the trailing edge is sealed
-                if close_te and self._get_cart_dist(X_t[-1], Y_t[-1], X_b[-1], Y_b[-1]) > 1e-3:
-                    X_t = np.concatenate([X_t, X_b[-1][np.newaxis]])
-                    Y_t = np.concatenate([Y_t, Y_b[-1][np.newaxis]])
+                if num_trimmed_from_top>0:
+                    r_b = self._get_cart_dist(x_b_break, y_b_break, x_f, y_f)
+                    X_b, Y_b = self._fill_surface(X_b, Y_b, x_f, y_f, r_b, x_b_break, num_trimmed_from_top, "forward")
 
                 # Concatenate top and bottom points
-                X = np.concatenate([X_t[::-1], X_b])
-                Y = np.concatenate([Y_t[::-1], Y_b])
+                X = np.concatenate([X_t, X_b])
+                Y = np.concatenate([Y_t, Y_b])
+
+                # Make sure the trailing edge is sealed
+                if close_te:
+                    x_te = 0.5*(X[0]+X[-1])
+                    y_te = 0.5*(Y[0]+Y[-1])
+                    X[0] = x_te
+                    Y[0] = y_te
+                    X[-1] = x_te
+                    Y[-1] = y_te
 
             # Plot result
-            if False:
+            if kwargs.get("plot", False):
                 plt.figure()
                 plt.plot(X, Y)
+                #plt.plot(x_t_break, y_t_break, 'rx')
+                #plt.plot(x_b_break, y_b_break, 'rx')
                 #plt.plot(x_f, y_f, 'rx')
+                plt.plot(x_c, y_c, 'r--')
+                plt.xlabel('x')
+                plt.ylabel('y')
+                plt.title(self.name)
                 plt.gca().set_aspect('equal', adjustable='box')
                 plt.show()
 
             # Concatenate x and y
             outline_points = np.concatenate([X[:,np.newaxis], Y[:,np.newaxis]], axis=1)
-            if not top_first:
+            if not kwargs.get("top_first", True):
                 outline_points = outline_points[::-1,:]
                     
             # Save to file
+            export = kwargs.get("export", None)
             if export is not None:
                 np.savetxt(export, outline_points, fmt='%10.8f')
 
             return outline_points
 
         else:
-            raise RuntimeError("The geometry has not been defined for airfoil {0}.".format(self.name))
+            raise RuntimeError("The geometry has not been defined for airfoil {0}. Outline points cannot be generated.".format(self.name))
 
 
     def _trim_surface(self, X, Y, direction):
-        # Trims any points that reverse direction in x
+        # Trims any points within a region of doubling back in x
 
         # Loop through points
         trim_indices = []
-        last_x_before_break = None
+        rev = False
+        fwd = False
 
         # Determine direction
-        if direction == "forward":
-            indices = range(X.shape[0])
+        indices = range(X.shape[0])
+        if direction == "backward":
+            indices = indices[::-1]
         
+        # Loop through points
+        trim_indices = []
+        i_prev = 0
         for i in indices:
             
-            # Skip first point
-            if i == 0:
+            # Skip first third of the section so we don't end up trimming off the nose
+            if X[i] < 0.3:
                 continue
 
-            # Check if we've passed the break point and store break point
-            if last_x_before_break is None and direction == "forward" and X[i] < X[i-1]:
-                last_x_before_break = X[i-1]
+            # Check if we've started going backwards
+            if not rev and X[i] < X[i_prev]:
+                rev = i_prev
 
-            # Check if we've now gone backwards
-            if last_x_before_break is not None and X[i] < last_x_before_break:
-                trim_indices.append(i)
+            # Check if we've started going forward again
+            if rev and not fwd and X[i] > X[i_prev]:
+                fwd = i_prev
+                break
 
-        return np.delete(X, trim_indices), np.delete(Y, trim_indices), len(trim_indices)
+            i_prev = i
+        
+        # Trim and insert
+        if rev and fwd:
+
+            # Determine where to trim
+            if direction == "forward":
+                trim_indices = list(range(rev, fwd+1))
+            else:
+                trim_indices = list(range(fwd, rev+1))
+
+            # Trim
+            X = np.delete(X, trim_indices)
+            Y = np.delete(Y, trim_indices)
+
+            return X, Y, len(trim_indices)
+        
+        else:
+            return X, Y, 0
 
 
-    def _fill_surface(self, X, Y, x_h, y_h, r, num_points):
+
+    def _fill_surface(self, X, Y, x_h, y_h, r, x_break, num_points, direction):
         # Fills in num_points along the arc defined by x_h, y_h, and r
 
+        # Determine direction
+        indices = range(X.shape[0])
+        if direction == "backward":
+            indices = indices[::-1]
+
         # Find the two points we need to fill in between
-        for i in range(X.shape[0]):
-            if X[i] > x_h:
+        for i in indices:
+            
+            # Skip first third of the section
+            if X[i] < 0.3:
+                continue
+
+            if X[i] > x_break:
                 fill_start = i-1
                 fill_stop = i
                 break
@@ -1545,12 +1503,8 @@ class Airfoil:
         theta0 = math.atan2(Y[fill_start]-y_h, X[fill_start]-x_h)
         theta1 = math.atan2(Y[fill_stop]-y_h, X[fill_stop]-x_h)
 
-        # Make sure we're actually going to fill in points
-        if num_points < 1:
-            num_points = 1
-
         # Find fill in points
-        theta_fill = np.linspace(theta0, theta1, num_points+2)[1:-2]
+        theta_fill = np.linspace(theta0, theta1, num_points+2)[1:-1]
         x_fill = x_h+r*np.cos(theta_fill)
         y_fill = y_h+r*np.sin(theta_fill)
 

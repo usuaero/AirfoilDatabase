@@ -4,26 +4,21 @@ import numpy as np
 import math as m
 from mpl_toolkits.mplot3d import Axes3D
 
-#geometry_file = "test/uCRM-9_wr0_xfoil.txt"
-geometry_file = "test/64A204.txt"
+geometry_file = "test/uCRM-9_wr0_xfoil.txt"
+#geometry_file = "test/64A204.txt"
 #geometry_file = "test/NACA_9412_geom.txt"
 #geometry_file = "test/NACA_0012_geom.txt"
 airfoil_input = {
     "type" : "database",
     "geometry" : {
-        "outline_points" : geometry_file,
-        "top_first" : True
+        "outline_points" : geometry_file
         #"NACA" : "9412"
     },
     "trailing_flap_type" : "parabolic"
 }
 
 airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
-#airfoil.get_outline_points(trailing_flap_deflection=-10.0)
-print(airfoil.get_thickness(0.5))
-print(airfoil.get_thickness(np.linspace(0.0, 1.0, 10)))
-print(airfoil.get_camber(0.5))
-print(airfoil.get_camber(np.linspace(0.0, 1.0, 10)))
+airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(30.0))#, plot=True, export="outline.txt")
 
 dofs = {
     "alpha" : {
@@ -55,7 +50,7 @@ dofs = {
 }
 
 # Generate or import database
-#airfoil.generate_database(degrees_of_freedom=dofs, max_iter=10000, show_xfoil_output=False)
+airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, show_xfoil_output=False)
 #airfoil.export_database(filename="christian_database.txt")
 #airfoil.import_database(filename="database.txt")
 
