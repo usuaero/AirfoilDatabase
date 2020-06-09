@@ -1916,7 +1916,7 @@ class Airfoil:
         dir_list = os.listdir()
         for item in dir_list:
             if os.path.isfile(item) and ".pacc" in item or ".geom" in item:
-                sp.call(['rm', item])
+                os.remove(item)
 
 
         # Loop through flap deflections and fractions
@@ -2038,7 +2038,7 @@ class Airfoil:
                                 print(response[1].decode('utf-8'))
 
                 # Clean up geometry
-                sp.call(['rm', outline_points])
+                os.remove(outline_points)
 
                 # Read in files and store arrays
                 for filename in pacc_files:
@@ -2078,7 +2078,7 @@ class Airfoil:
                                 Cm[i,j,k,l,m] = Cm[i-1,j,k,l,m]*(1-weight)+Cm[i+1,j,k,l,m]*weight
 
                     # Clean up polar files
-                    sp.call(['rm', filename])
+                    os.remove(filename)
 
         return CL, CD, Cm
 
