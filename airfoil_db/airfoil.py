@@ -825,11 +825,11 @@ class Airfoil:
             param_vals[:,i] = kwargs.get(dof, self._dof_defaults[dof])
 
         # Interpolate
-        return_val = interp.griddata(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+data_index].flatten(), param_vals, method='linear')
+        return_val = interp.griddata(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+data_index].flatten(), param_vals, method='linear').flatten()
 
         # Check for going out of bounds
         if np.isnan(return_val).any():
-            warnings.warn("One or more of the input parameters to the airfoil database fall outside the bounds of the provided data.")
+            print("One or more of the input parameters to the airfoil database fall outside the bounds of the provided data.")
 
         # Return
         if max_size == 1:
