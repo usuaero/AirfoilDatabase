@@ -44,8 +44,8 @@ The following are keys which can be specified in the airfoil JSON object or dict
 >**"CLa" : float, optional**
 >>The lift slope in radians^-1. Defaults to 2pi Only for "linear".
 >
->**"am0" : float, optional**
->>The zero-moment angle of attack in radians. Defaults to 0.0. Only for "linear".
+>**"CmL0" : float, optional**
+>>The quarter-chord moment coefficient at the zero-lift angle of attack. Defaults to 0.0. Only for "linear".
 >
 >**"Cma" : float, optional**
 >>The moment slope in radians^-1. Defaults to 0.0. Only for "linear".

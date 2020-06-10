@@ -126,20 +126,7 @@ class Airfoil:
             self._CL_max = self._input_dict.get("CL_max", np.inf)
             if abs(self._CL_max) < 1e-10:
                 warnings.warn("You have specified a maximum lift coefficient of 0. Are you sure you want to do this?...")
-
-            # Calculate am0 if needed
-            self._am0 = self._input_dict.get("am0", None)
-            self._CmL0 = self._input_dict.get("CmL0", None)
-            if not (self._am0 is None or self._CmL0 is None):
-                raise IOError("Both 'am0' and 'CmL0' cannot be specified for airfoil {0}.".format(self.name))
-            if self._CmL0 is None:
-                self._CmL0 = 0.0
-            if self._am0 is None:
-                if self._Cma == 0.0:
-                    self._am0 = 0
-                else:
-                    self._am0 = self._aL0-self._CmL0/self._Cma
-
+            self._CmL0 = self._input_dict.get("CmL0", 0.0)
             self._CLM = self._input_dict.get("CLM", 0.0)
             self._CLRe = self._input_dict.get("CLRe", 0.0)
 
@@ -791,11 +778,11 @@ class Airfoil:
 
             # No control deflection
             if np.array(d_f == 0.0).all() or np.array(c_f == 0.0).all():
-                Cm = self._Cma*(alpha-self._am0)
+                Cm = self._CmL0+self._Cma*(alpha-self._aL0)
             else:
-                theta_f = np.arccos(2*c_f-1)
-                Cm_df = (np.sin(2*theta_f)-2*np.sin(theta_f))/4
-                Cm = self._Cma*(alpha-self._am0)+Cm_df*d_f
+                theta_f = np.arccos(2.0*c_f-1.0)
+                Cm_df = 0.25*(np.sin(2.0*theta_f)-2.0*np.sin(theta_f))
+                Cm = self._CmL0+self._Cma*(alpha-self._aL0)+Cm_df*d_f
 
         # Generated/imported database
         elif self._type == "database":
@@ -922,7 +909,7 @@ class Airfoil:
 
 
     def get_am0(self, **kwargs):
-        """Returns the zero-moment angle of attack
+        """Returns the zero-moment angle of attack (obsolete)
 
         Parameters
         ----------

@@ -4,7 +4,7 @@ from setuptools import setup
 import os
 
 setup(name = 'airfoil_db',
-    version = '1.3',
+    version = '1.4',
     description = "AirfoilDatabase: A Python module for modeling airfoils using Xfoil.",
     url = 'https://github.com/usuaero/AirfoilDatabase',
     author = 'usuaero',
