@@ -8,13 +8,15 @@ If you do not have Python installed on your machine, it can be downloaded from [
 
 ### Xfoil
 
-AirfoilDatabase calculates section properties using a code called Xfoil, written by MIT. The Xfoil executable can be downloaded for Windows at [http://web.mit.edu/drela/Public/web/xfoil/](http://web.mit.edu/drela/Public/web/xfoil/). This is also available as a package on some Linux distributions and can be installed like any other package. For example on Mint:
+AirfoilDatabase calculates section properties using a code called Xfoil, written by MIT. The Xfoil executable can be downloaded for Windows at [http://web.mit.edu/drela/Public/web/xfoil/](http://web.mit.edu/drela/Public/web/xfoil/). To get this to work with AirfoilDatabase, you will need to make sure to add the Xfoil executable to your path environment variable. If you're not familiar with editing environment variables, you can find a quick tutorial [here](https://www.computerhope.com/issues/ch000549.htm). Just follow the outlined procedure to add Xfoil to Path.
+
+Xfoil is also available as a package on some Linux distributions and can be installed like any other package. For example on Mint:
 
     $ sudo apt-get install xfoil
 
-For other Unix systems where a package is not available, compiling from the Fortran source code is required. Step by step instructions on how to do this can be found on the page [Compiling Xfoil on Unix](xfoil_installation).
+For other Unix (Linux/Mac) systems where a package is not available, compiling from the Fortran source code is required. Step by step instructions on how to do this can be found on the page [Compiling Xfoil on Unix](xfoil_installation).
 
-**AirfoilDatabase must be able to send only the command ```xfoil``` to the system to run the Xfoil executable.** Please have this properly configured before trying to run AirfoilDatabase.
+**AirfoilDatabase must be able to send only the command ```xfoil``` to the system to run the Xfoil executable.** To make sure Xfoil is properly configured, type "xfoil" into your terminal application and verify this runs the application (the interface for Xfoil is entirely terminal-based).
 
 ## Getting the Source Code
 
