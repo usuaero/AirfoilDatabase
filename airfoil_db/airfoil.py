@@ -816,7 +816,7 @@ class Airfoil:
 
         # Check for going out of bounds
         if np.isnan(return_val).any():
-            print("One or more of the input parameters to the airfoil database fall outside the bounds of the provided data.")
+            print("The inputs to airfoil {0} fall outside the bounds of the database. NaN results should be expected. Please expand the database.".format(self.name))
 
         # Return
         if max_size == 1:
