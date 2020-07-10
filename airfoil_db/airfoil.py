@@ -1,19 +1,20 @@
 """A class defining an airfoil."""
 
-import numpy as np
 import math
-import matplotlib.pyplot as plt
-import scipy.interpolate as interp
-import scipy.signal as sig
-import subprocess as sp
 import json
 import copy
 import os
 import operator
-from .poly_fits import multivariablePolynomialFit, multivariablePolynomialFunction, autoPolyFit, multivariableRMS, multivariableR2
 import io
 import sys
 import warnings
+import matplotlib.pyplot as plt
+import scipy.interpolate as interp
+import scipy.signal as sig
+import subprocess as sp
+import numpy as np
+from .poly_fits import multivariablePolynomialFit, multivariablePolynomialFunction, autoPolyFit, multivariableRMS, multivariableR2
+from .exceptions import DatabaseBoundsError
 
 
 class Airfoil:
@@ -816,7 +817,7 @@ class Airfoil:
 
         # Check for going out of bounds
         if np.isnan(return_val).any():
-            print("The inputs to airfoil {0} fall outside the bounds of the database. NaN results should be expected. Please expand the database.".format(self.name))
+            raise DatabaseBoundsError(self.name, np.argwhere(np.isnan(return_val)).flatten(), kwargs)
 
         # Return
         if max_size == 1:
@@ -909,7 +910,7 @@ class Airfoil:
 
 
     def get_am0(self, **kwargs):
-        """Returns the zero-moment angle of attack (obsolete)
+        """Returns the zero-moment angle of attack (DEPRECIATED)
 
         Parameters
         ----------
@@ -1198,11 +1199,11 @@ class Airfoil:
 
         Parameters
         ----------
-        N : int
+        N : int, optional
             The number of outline points to return. This function will not always return exactly this many
             but never more. Defaults to 200.
 
-        cluster : bool
+        cluster : bool, optional
             Whether to cluster points about the leading and trailing edges. Defaults to True.
 
         trailing_flap_deflection : float, optional
@@ -1211,17 +1212,17 @@ class Airfoil:
         trailing_flap_fraction : float, optional
             Trailing flap fraction of the chord. Defaults to zero.
 
-        export : str
+        export : str, optional
             If specified, the outline points will be saved to a file. Defaults to no file.
 
-        top_first : bool
+        top_first : bool, optional
             The order of the coordinates when exported. Defaults to going from the trailing edge along the top and
             the around to the bottom.
 
-        close_te : bool
-            Whether the top and bottom trailing edge points should be forced to be equal.
+        close_te : bool, optional
+            Whether the top and bottom trailing edge points should be forced to be equal. Defaults to False
 
-        plot : bool
+        plot : bool, optional
             Whether a plot of the outline points should be displayed once computed. Defaults to False.
 
         Returns
@@ -1238,7 +1239,7 @@ class Airfoil:
             cluster = kwargs.get("cluster", True)
             trailing_flap_deflection = kwargs.get("trailing_flap_deflection", 0.0)
             trailing_flap_fraction = kwargs.get("trailing_flap_fraction", 0.0)
-            close_te = kwargs.get("close_te", True)
+            close_te = kwargs.get("close_te", False)
             
             # Zach's method of determining NACA airfoils with deflected parabolic flaps (actually works really well for all of them...)
 
@@ -1377,14 +1378,14 @@ class Airfoil:
                 X = np.concatenate([X_t, X_b])
                 Y = np.concatenate([Y_t, Y_b])
 
-                # Make sure the trailing edge is sealed
-                if close_te:
-                    x_te = 0.5*(X[0]+X[-1])
-                    y_te = 0.5*(Y[0]+Y[-1])
-                    X[0] = x_te
-                    Y[0] = y_te
-                    X[-1] = x_te
-                    Y[-1] = y_te
+            # Make sure the trailing edge is sealed
+            if close_te:
+                x_te = 0.5*(X[0]+X[-1])
+                y_te = 0.5*(Y[0]+Y[-1])
+                X[0] = x_te
+                Y[0] = y_te
+                X[-1] = x_te
+                Y[-1] = y_te
 
             # Plot result
             if kwargs.get("plot", False):

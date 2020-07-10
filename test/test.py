@@ -18,7 +18,7 @@ airfoil_input = {
 }
 
 airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
-airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(30.0))#, plot=True, export="outline.txt")
+#airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(30.0))#, plot=True, export="outline.txt")
 
 dofs = {
     "alpha" : {
@@ -50,9 +50,14 @@ dofs = {
 }
 
 # Generate or import database
-airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, show_xfoil_output=False)
+#airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, show_xfoil_output=False)
 #airfoil.export_database(filename="christian_database.txt")
-#airfoil.import_database(filename="database.txt")
+airfoil.import_database(filename="database.txt")
+try:
+    print(airfoil.get_CL(alpha=np.linspace(100, 200, 50)))
+except adb.DatabaseBoundsError as e:
+    print("Invalid indices: {0}".format(e.exception_indices))
+    print("Inputs: {0}".format(e.inputs_dict))
 
 # Fit orders
 CL_fit_orders = {
