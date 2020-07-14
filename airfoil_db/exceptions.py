@@ -7,4 +7,9 @@ class DatabaseBoundsError(Exception):
         self.airfoil = airfoil
         self.exception_indices = exception_indices
         self.inputs_dict = inputs_dict
-        super().__init__(message)
+        self.message = message
+        super().__init__(self.message)
+
+
+    def __str__(self):
+        return self.message+" Airfoil: {0}".format(self.airfoil)
