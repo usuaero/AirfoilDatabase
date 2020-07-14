@@ -10,4 +10,5 @@ Airfoil Database
    xfoil_installation
    creating_input_files
    airfoil_class
+   error_handling
    support
