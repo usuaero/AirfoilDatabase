@@ -73,9 +73,9 @@ class Airfoil:
         Parameters
         ----------
         database_type: str
-            "linear", "database", or "poly_fit". Airfoil will automatically
-            check if it has the necessary to perform the given type of 
-            computation and throw a warning if it does not.
+            "linear", "functional", "database", or "poly_fit". Airfoil
+            will automatically check if it has the necessary to perform
+            the given type of computation and throw a warning if it does not.
 
         """
 
@@ -99,6 +99,11 @@ class Airfoil:
                 raise RuntimeWarning("Airfoil {0} does not have a set of polynomial fits. Reverting to type '{1}' for computations.".format(self.name, self._type))
             else:
                 self._type = database_type
+
+        # Check for functional definition
+        if database_type == "functional":
+            if not hasattr(self, "_CL"):
+                raise RuntimeWarning("Airfoil {0} does not have functional definitions of coefficients. Reverting to type '{1}' for computations.".format(self.name, self._type))
 
 
     def _load_params(self, airfoil_input):
@@ -130,6 +135,12 @@ class Airfoil:
             self._CmL0 = self._input_dict.get("CmL0", 0.0)
             self._CLM = self._input_dict.get("CLM", 0.0)
             self._CLRe = self._input_dict.get("CLRe", 0.0)
+
+        # For functional, store functions
+        elif self._type == "functional":
+            self._CL = self._input_dict["CL"]
+            self._CD = self._input_dict["CD"]
+            self._Cm = self._input_dict["Cm"]
 
 
     def _load_flaps(self):
@@ -675,6 +686,10 @@ class Airfoil:
                 elif CL > self._CL_max or CL < -self._CL_max:
                     CL = np.sign(CL)*self._CL_max
 
+        # Functional model
+        elif self._type == "functional":
+            CL = self._CL(**kwargs)
+
         # Generated/imported database
         elif self._type == "database":
             CL = self._get_database_data(0, **kwargs)
@@ -722,11 +737,17 @@ class Airfoil:
         float or ndarray
             Drag coefficient
         """
+
+        # Linear type
         if self._type == "linear":
             d_f = kwargs.pop("trailing_flap_deflection", 0.0)
             CL = self.get_CL(**kwargs)
             CD_flap = 0.002*np.abs(np.degrees(d_f)) # A *very* rough estimate for flaps
             CD = self._CD0+self._CD1*CL+self._CD2*CL**2+CD_flap
+
+        # Functional model
+        elif self._type == "functional":
+            CD = self._CD(**kwargs)
 
         # Generated/imported database
         elif self._type == "database":
@@ -784,6 +805,10 @@ class Airfoil:
                 theta_f = np.arccos(2.0*c_f-1.0)
                 Cm_df = 0.25*(np.sin(2.0*theta_f)-2.0*np.sin(theta_f))
                 Cm = self._CmL0+self._Cma*(alpha-self._aL0)+Cm_df*d_f
+
+        # Functional model
+        elif self._type == "functional":
+            Cm = self._Cm(**kwargs)
 
         # Generated/imported database
         elif self._type == "database":
@@ -866,7 +891,7 @@ class Airfoil:
             return aL0
 
         # Database
-        elif self._type == "database" or self._type == "poly_fit":
+        elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
 
             # Use secant method in alpha to find a_L0
             # Initialize secant method
@@ -909,88 +934,6 @@ class Airfoil:
             return a2
 
 
-    def get_am0(self, **kwargs):
-        """Returns the zero-moment angle of attack (DEPRECIATED)
-
-        Parameters
-        ----------
-        Rey : float, optional
-            Reynolds number. Defaults to 100000.
-
-        Mach : float, optional
-            Mach number. Defaults to 0.
-
-        trailing_flap_deflection : float, optional
-            Trailing flap deflection in radians. Defaults to 0.
-
-        trailing_flap_fraction : float, optional
-            Trailing flap fraction of the chord length. Defaults to 0.
-
-        Returns
-        -------
-        float
-            Zero-moment angle of attack
-        """
-
-        # Linear airfoil model
-        if self._type == "linear":
-
-            # Get params
-            d_f = kwargs.get("trailing_flap_deflection", 0.0)
-            c_f = kwargs.get("trailing_flap_fraction", 0.0)
-
-            # No control deflection or no moment slope
-            if np.array(d_f == 0.0).all() or np.array(c_f == 0.0).all() or self._Cma == 0.0:
-                return self._am0
-            else:
-                theta_f = np.arccos(2*c_f-1)
-                Cm_df = (np.sin(2*theta_f)-2*np.sin(theta_f))/4
-                return self._am0-Cm_df*d_f/self._Cma
-
-        # Database
-        elif self._type == "database" or self._type == "poly_fit":
-
-            # Use secant method in alpha to find a_L0
-            # Initialize secant method
-            a0 = 0.0
-            Cm0 = self.get_Cm(alpha=a0, **kwargs)
-            a0 = np.zeros_like(Cm0)
-            a1 = np.zeros_like(Cm0)+0.01
-            Cm1 = self.get_Cm(alpha=a1, **kwargs)
-            a2 = np.zeros_like(Cm1)
-
-            # If we're outside the domain of the database, aL0 should be nan
-            if a2.size == 1:
-                if np.isnan(Cm1):
-                    a2 = np.nan
-            else:
-                a2[np.where(np.isnan(Cm1))] = np.nan
-            
-            # Iterate
-            np.seterr(invalid='ignore')
-            not_converged = np.where(np.array(np.abs(Cm1)>1e-10))[0]
-            while not_converged.size>0:
-                
-                # Update estimate
-                if a2.size == 1:
-                    a2 = (a1-Cm1*(a0-a1)/(Cm0-Cm1))
-                else:
-                    a2[not_converged] = (a1-Cm1*(a0-a1)/(Cm0-Cm1))[not_converged]
-                Cm2 = self.get_Cm(alpha=a2, **kwargs)
-
-                # Update for next iteration
-                a0 = np.copy(a1)
-                Cm0 = np.copy(Cm1)
-                a1 = np.copy(a2)
-                Cm1 = np.copy(Cm2)
-
-                # Check convergence
-                not_converged = np.where(np.array(np.abs(Cm1)>1e-10))[0]
-
-            np.seterr()
-            return a2
-
-
     def get_CLM(self, **kwargs):
         """Returns the lift slope with respect to Mach number using a forward-difference approximation.
 
@@ -1025,7 +968,7 @@ class Airfoil:
             return self._CLM
 
         # Database
-        elif self._type == "database" or self._type == "poly_fit":
+        elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
 
             # Check the database is dependent on Mach
             if "Mach" not in self._dof_db_order:
@@ -1076,7 +1019,7 @@ class Airfoil:
             return self._CLRe
 
         # Database
-        elif self._type == "database" or self._type == "poly_fit":
+        elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
 
             # Check the database is dependent on Re
             if "Rey" not in self._dof_db_order:
@@ -1127,7 +1070,7 @@ class Airfoil:
             return self._CLa
 
         # Database
-        elif self._type == "database" or self._type == "poly_fit":
+        elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
 
             # Check the database is dependent on alpha
             if "alpha" not in self._dof_db_order:
