@@ -4,13 +4,15 @@ As an initializer, the Airfoil class takes a JSON object (file) or Python dictio
 The following are keys which can be specified in the airfoil JSON object or dictionary.
 
 >**"type" : string**
->>The type of prediction to be used in determining aerodynamic properties. Can be "linear", "database", or "poly_fit". "linear" airfoils are defined by a linearization of airfoil parameters about the zero-lift angle of attack, with the exception of CD being a quadratic function of CL. All appropriate coefficients and derivatives should then be given. UNITS MAY NOT BE SPECIFIED BY THE USER FOR ANY AIRFOIL PARAMETERS. THESE VALUES MUST BE SPECIFIED IN THE UNITS GIVEN.
+>>The type of prediction to be used in determining aerodynamic properties. Can be "linear", "database", "poly_fit", or "functional". "linear" airfoils are defined by a linearization of airfoil parameters about the zero-lift angle of attack, with the exception of CD being a quadratic function of CL. All appropriate coefficients and derivatives should then be given. UNITS MAY NOT BE SPECIFIED BY THE USER FOR ANY AIRFOIL PARAMETERS. THESE VALUES MUST BE SPECIFIED IN THE UNITS GIVEN.
 >>
 >>For the linear class of airfoils, we make corrections to section data due to flap deflection based on Phillips' corrections (see Phillips, *Mechanics of Flight*, 2010, pp. 39-46).
 >>
 >>"database" airfoils are defined by an array of data, that is aerodynamic coefficients, determined at various angles of attack, Reynolds numbers, Mach numbers, and flap deflections. Such a database must be generated using this software. More information, see generate_database(), export_database(), and import_database() in [Airfoil Class](airfoil_class).
 >>
 >>"poly_fit" airfoils are defined by polynomial functions of aerodynamic coefficients as a function of angle of attack, Reynolds number, Mach number, and flap deflection. These fits must be generated using this software. More information, see generate_polynomial_fits(), export_polynomial_fits(), and import_polynomial_fits() in [Airfoil Class](airfoil_class).
+>>
+>>"functional" airfoils are defined by user-defined functions. This type can only be used if the airfoil input is declared as a dictionary within a Python script. The user defines three functions which give the coefficients of lift, drag, and moment as a function of various parameters.
 >
 >**"input_file" : str, optional**
 >>File to read database or fit data from. The file specified here should match the "type" of the airfoil specified (e.g. if "type" is "database", this should be the database file).
@@ -61,3 +63,35 @@ The following are keys which can be specified in the airfoil JSON object or dict
 >
 >**"CL_max" : float, optional**
 >>Maximum lift coefficient. Defaults to infinity. Only for "linear".
+>
+>The following keys are pertinent to the "functional" type.
+>
+>**"CL" : func**
+>>Function handle returning the coefficient of lift based on the given parameters. The function declaration should look like
+>>
+>>>def user_CL(**kwargs):
+>>>    ...
+>>>    return CL
+>>
+>>Kwargs may be given as floats or as 1-D numpy arrays. This function must be able to handle both (not difficult to implement). The following kwargs can be given to this function:
+>>>
+>>>"alpha" : float
+>>>>Angle of attack in radians.
+>>>
+>>>"Rey" : float
+>>>>Reynolds number.
+>>>
+>>>"Mach" : float
+>>>>Mach number.
+>>>
+>>>"trailing_flap_deflection" : float
+>>>>Trailing flap deflection in radians.
+>>>
+>>>"trailing_flap_fraction" : float
+>>>>Trailing flap fraction of the chord length.
+>
+>**"CD" : func**
+>>Function handle returning the coefficient of drag based on the given parameters. Same as "CL".
+>
+>**"Cm" : func**
+>>Function handle returning the moment coefficient based on the given parameters. Same as "CL".
