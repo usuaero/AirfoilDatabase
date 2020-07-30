@@ -3,8 +3,8 @@
 class DatabaseBoundsError(Exception):
     """An exception thrown when the inputs to the airfoil database fall outside the database bounds.
 
-    Members
-    -------
+    Attributes
+    ----------
 
     airfoil : str
         The name of the airfoil for which this exception occurred.
