@@ -20,7 +20,8 @@ if __name__=="__main__":
 
     # Initialize airfoil
     airfoil = adb.Airfoil("my_airfoil", airfoil_input, verbose=True)
-    # Setting verbose to true will let us see how well the camber line/outline are detected and fit
+    # Setting verbose to true will let us see how well the camber line/outline are detected and fit.
+    # We recommend turning this on for new airfoils
 
     # Set up database degrees of freedom
     dofs = {

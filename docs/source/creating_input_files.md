@@ -22,6 +22,8 @@ The following are keys which can be specified in the airfoil JSON object or dict
 >>
 >>**"outline_points" : str or array, optional**
 >>>Path to a file containing airfoil outline points or array of outline points. The first column contains x-coordinates and the second column contains y-coordinates, where the x-axis originates at the leading edge and points back along the chord line and the y-axis points up. If a file, it should be comma-delimited or space-delimited. The points should begin at the trailing edge, wrap around the leading edge, and then end at the trailing edge. The airfoil will automatically determine the ordering of the points (whether top first or bottom first). Cannot be specified along with "NACA".
+>>>
+>>>Experience has shown that airfoil outlines ending in a blunt tip at a closed trailing edge are poorly handled by AirfoilDatabase. We recommend having either an open trailing edge, or having the trailing edge taper to a smooth point.
 >>
 >>**"NACA" : str, optional**
 >>>NACA designation for the airfoil. If given, the airfoil will automatically generate outline points using the NACA equations. Can only be NACA 4-digit series. Cannot be specified along with "outline_points".

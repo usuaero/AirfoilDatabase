@@ -28,14 +28,22 @@ class Airfoil:
     airfoil_input : dict or str
         Dictionary or path to JSON object describing the airfoil.
 
-    verbose : bool
+    verbose : bool, optional
         Whether to display information on the progress of parameterizing the geometry
         for an airfoil defined by a set of outline points. Defaults to False.
 
-    camber_relaxation : float
+    camber_relaxation : float, optional
         A value between 0.0 and 1.0 that defines how much of the update at each
         iteration of the camber line solver should be accepted. Helpful for some
         poorly behaved cases. Defaults to 1.0 (full update).
+    
+    le_at_origin : bool, optional
+        Sets a flag as to whether or not the leading edge should be assumed to be at the
+        origin of the given points for an airfoil defined by a set of outline points. If
+        you know that the leading edge of your airfoil is at (0.0, 0.0), this should be
+        set to True. If set to False, the camber line solver will try to iteratively
+        find the leading edge (the point where the camber line intersects the front of the
+        profile). Defaults to False.
     """
 
     def __init__(self, name, airfoil_input, **kwargs):
@@ -44,6 +52,7 @@ class Airfoil:
         self._load_params(airfoil_input)
         self._verbose = kwargs.get("verbose", False)
         self._camber_relaxation = kwargs.get("camber_relaxation", 1.0)
+        self._le_at_origin = kwargs.get("le_at_origin", False)
 
         # Load flaps
         self._load_flaps()
@@ -303,8 +312,11 @@ class Airfoil:
 
         # Find the pseudo leading and trailing edge positions
         te = (self._raw_outline[0]+self._raw_outline[-1])*0.5
-        le_ind = np.argmin(self._raw_outline[:,0])
-        le = self._raw_outline[le_ind]
+        if not self._le_at_origin:
+            le_ind = np.argmin(self._raw_outline[:,0])
+            le = self._raw_outline[le_ind]
+        else:
+            le = [0.0, 0.0]
 
         # Translate to origin, rotate, and scale
         self._normalize_points(self._raw_outline, le, te)
@@ -318,21 +330,19 @@ class Airfoil:
         # Camber line estimate parameters
         num_camber_points = self._N_orig//5 # As recommended by Cody Cummings to avoid discontinuities in dyc/dx
         camber_deriv_edge_order = 2
-        self._cosine_cluster = False
-        le_offset = 0.0001
-
-        # Use cosine clustering to space points along the camber line
-        if self._cosine_cluster:
-            theta = np.linspace(-np.pi, np.pi, num_camber_points)
-            x_c = 0.5*(1-np.cos(theta))*(te[0]-le[0])
+        if not self._le_at_origin:
+            x_c = np.linspace(le[0]+0.0001, te[0], num_camber_points)
         else:
-            x_c = np.linspace(le[0]+le_offset, te[0], num_camber_points)
+            x_c = np.linspace(le[0], te[0], num_camber_points)
 
-        # Get initial estimate for the camber line and thickness distributions
+        # Get initial estimate for the camber line
         y_t = np.interp(x_c, self._raw_outline[le_ind::-1,0], self._raw_outline[le_ind::-1, 1])
         y_b = np.interp(x_c, self._raw_outline[le_ind:,0], self._raw_outline[le_ind:, 1])
         y_c = 0.5*(y_t+y_b)
+        if self._le_at_origin:
+            y_c[0] = 0.0
 
+        # A useful distribution
         x_space = np.linspace(0.0, 1.0, 1000)
 
         # Show
@@ -349,8 +359,8 @@ class Airfoil:
         # Initialize
         x_t = np.zeros(num_camber_points)
         x_b = np.zeros(num_camber_points)
-        x_c_new= np.zeros(num_camber_points)
-        y_c_new= np.zeros(num_camber_points)
+        x_c_new = np.zeros(num_camber_points)
+        y_c_new = np.zeros(num_camber_points)
 
         # Check for symmetric airfoil
         if np.allclose(y_c, 0.0):
@@ -381,6 +391,9 @@ class Airfoil:
             # Calculate new camber line points
             x_c_new = 0.5*(x_t+x_b)
             y_c_new = 0.5*(y_t+y_b)
+            if self._le_at_origin:
+                x_c_new[0] = 0.0
+                y_c_new[0] = 0.0
 
             # Plot new and old estimate
             if False:
@@ -411,12 +424,13 @@ class Airfoil:
         if self._verbose: print("Camber line solver converged.")
 
         # Calculate where the camber line intersects the outline to find the leading edge
-        dyc_dx = np.gradient(y_c, x_c, edge_order=2)
-        b = dyc_dx[0]
-        x_le, y_le, self._s_le = self._get_intersection_point(x_c[0], y_c[0], b, "leading_edge")
-        le = np.array([x_le, y_le])
-        x_c = np.insert(x_c, 0, le[0])
-        y_c = np.insert(y_c, 0, le[1])
+        if not self._le_at_origin:
+            dyc_dx = np.gradient(y_c, x_c, edge_order=2)
+            b = dyc_dx[0]
+            x_le, y_le, self._s_le = self._get_intersection_point(x_c[0], y_c[0], b, "leading_edge")
+            le = np.array([x_le, y_le])
+            x_c = np.insert(x_c, 0, le[0])
+            y_c = np.insert(y_c, 0, le[1])
         if self._verbose: print("Leading edge: {0}".format(le))
 
         if self._verbose:
@@ -452,10 +466,10 @@ class Airfoil:
 
         # Find points on the surface to determine the thickness
         if self._verbose: print("Calculating thickness distribution...", end="")
-        x_t_t = np.zeros(x_space.shape)
-        x_b_t = np.zeros(x_space.shape)
-        y_t_t = np.zeros(x_space.shape)
-        y_b_t = np.zeros(x_space.shape)
+        x_t_t = np.zeros_like(x_space)
+        x_b_t = np.zeros_like(x_space)
+        y_t_t = np.zeros_like(x_space)
+        y_b_t = np.zeros_like(x_space)
         for i, xc in enumerate(x_space):
             if i == 0: continue # This point intersects the outline by definition and so will have zero thickness
             yc = y_c[i]
@@ -577,6 +591,7 @@ class Airfoil:
             d0 = d1
             x0 = x1
             y0 = y1
+
             s1 = s2
             d1 = d2
             x1 = x2
@@ -1530,7 +1545,7 @@ class Airfoil:
                 "Mach"
 
                 "trailing_flap_deflection"
-                
+
                 "trailing_flap_fraction"
 
             Each key should be one of these degrees of freedom. The value is a dictionary or a float
