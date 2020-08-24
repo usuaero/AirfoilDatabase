@@ -17,7 +17,7 @@ airfoil_input = {
     "trailing_flap_type" : "parabolic"
 }
 
-airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True, le_loc=[0.1324753E-01, 0.2006188E-01], camber_relaxation=0.1)
+airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True)
 #airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(30.0))#, plot=True, export="outline.txt")
 
 dofs = {

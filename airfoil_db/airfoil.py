@@ -40,9 +40,9 @@ class Airfoil:
     le_loc : list, optional
         Gives the location of the leading edge relative to the given points for an airfoil
         defined by a set of outline points. If this is given, the camber line will be forced
-        to intersect this point. If not given, the camber line solver will try to iteratively
-        find the leading edge (the point where the camber line intersects the front of the
-        profile).
+        to intersect this point. THIS POINT SHOULD LIE ON THE AIRFOIL OUTLINE. If not given,
+        the camber line solver will try to iteratively find the leading edge (the point where
+        the camber line intersects the front of the profile).
     """
 
     def __init__(self, name, airfoil_input, **kwargs):
@@ -309,27 +309,19 @@ class Airfoil:
             print("{0:<20}{1:<20}".format("Iteration", "Max Approx Error"))
             print("".join(["-"]*40))
 
-        ## Find the pseudo leading and trailing edge positions
-        #te = (self._raw_outline[0]+self._raw_outline[-1])*0.5
-        #if not self._le_at_origin:
-        #    le_ind = np.argmin(self._raw_outline[:,0])
-        #    le = self._raw_outline[le_ind]
-        #else:
-        #    le = [0.0, 0.0]
-
-        ## Translate to origin, rotate, and scale
-        #self._normalize_points(self._raw_outline, le, te)
+        # Camber line estimate parameters
+        num_camber_points = self._N_orig//5 # As recommended by Cody Cummings to avoid discontinuities in dyc/dx
+        camber_deriv_edge_order = 2
 
         # Create splines defining the outline
         self._x_outline, self._y_outline = self._create_splines_of_s(self._raw_outline)
 
-        # Camber line estimate parameters
-        num_camber_points = self._N_orig//5 # As recommended by Cody Cummings to avoid discontinuities in dyc/dx
-        camber_deriv_edge_order = 2
+        # Get distribution of x locations
         le_ind = np.argmin(np.abs(self._raw_outline[:,0]))
         te = (self._raw_outline[0]+self._raw_outline[-1])*0.5
         if self._le_loc is None:
-            x_c = np.linspace(0.0001, te[0], num_camber_points)
+            x_tip = np.min(self._raw_outline[:,0])
+            x_c = np.linspace(x_tip+0.0001, te[0], num_camber_points)
         else:
             x_c = np.linspace(self._le_loc[0], te[0], num_camber_points)
 
