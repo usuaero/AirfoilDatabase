@@ -4,10 +4,10 @@ import numpy as np
 import math as m
 from mpl_toolkits.mplot3d import Axes3D
 
-geometry_file = "test/uCRM-9_wr0_xfoil.txt"
-#geometry_file = "test/64A204.txt"
-#geometry_file = "test/NACA_9412_geom.txt"
-#geometry_file = "test/NACA_0012_geom.txt"
+geometry_file = "dev/uCRM-9_wr0_xfoil.txt"
+#geometry_file = "dev/64A204.txt"
+#geometry_file = "dev/NACA_9412_geom.txt"
+#geometry_file = "dev/NACA_0012_geom.txt"
 airfoil_input = {
     "type" : "database",
     "geometry" : {
@@ -17,7 +17,7 @@ airfoil_input = {
     "trailing_flap_type" : "parabolic"
 }
 
-airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=False)
+airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True, le_loc=[0.1324753E-01, 0.2006188E-01], camber_relaxation=0.1)
 #airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(30.0))#, plot=True, export="outline.txt")
 
 dofs = {
@@ -52,12 +52,12 @@ dofs = {
 # Generate or import database
 #airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, show_xfoil_output=False)
 #airfoil.export_database(filename="christian_database.txt")
-airfoil.import_database(filename="database.txt")
-try:
-    print(airfoil.get_CL(alpha=np.linspace(100, 200, 50)))
-except adb.DatabaseBoundsError as e:
-    print("Invalid indices: {0}".format(e.exception_indices))
-    print("Inputs: {0}".format(e.inputs_dict))
+#airfoil.import_database(filename="database.txt")
+#try:
+#    print(airfoil.get_CL(alpha=np.linspace(100, 200, 50)))
+#except adb.DatabaseBoundsError as e:
+#    print("Invalid indices: {0}".format(e.exception_indices))
+#    print("Inputs: {0}".format(e.inputs_dict))
 
 # Fit orders
 CL_fit_orders = {

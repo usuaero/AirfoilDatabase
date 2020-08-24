@@ -37,13 +37,12 @@ class Airfoil:
         iteration of the camber line solver should be accepted. Helpful for some
         poorly behaved cases. Defaults to 1.0 (full update).
     
-    le_at_origin : bool, optional
-        Sets a flag as to whether or not the leading edge should be assumed to be at the
-        origin of the given points for an airfoil defined by a set of outline points. If
-        you know that the leading edge of your airfoil is at (0.0, 0.0), this should be
-        set to True. If set to False, the camber line solver will try to iteratively
+    le_loc : list, optional
+        Gives the location of the leading edge relative to the given points for an airfoil
+        defined by a set of outline points. If this is given, the camber line will be forced
+        to intersect this point. If not given, the camber line solver will try to iteratively
         find the leading edge (the point where the camber line intersects the front of the
-        profile). Defaults to False.
+        profile).
     """
 
     def __init__(self, name, airfoil_input, **kwargs):
@@ -52,7 +51,7 @@ class Airfoil:
         self._load_params(airfoil_input)
         self._verbose = kwargs.get("verbose", False)
         self._camber_relaxation = kwargs.get("camber_relaxation", 1.0)
-        self._le_at_origin = kwargs.get("le_at_origin", False)
+        self._le_loc = kwargs.get("le_loc", None)
 
         # Load flaps
         self._load_flaps()
@@ -310,19 +309,16 @@ class Airfoil:
             print("{0:<20}{1:<20}".format("Iteration", "Max Approx Error"))
             print("".join(["-"]*40))
 
-        # Find the pseudo leading and trailing edge positions
-        te = (self._raw_outline[0]+self._raw_outline[-1])*0.5
-        if not self._le_at_origin:
-            le_ind = np.argmin(self._raw_outline[:,0])
-            le = self._raw_outline[le_ind]
-        else:
-            le = [0.0, 0.0]
+        ## Find the pseudo leading and trailing edge positions
+        #te = (self._raw_outline[0]+self._raw_outline[-1])*0.5
+        #if not self._le_at_origin:
+        #    le_ind = np.argmin(self._raw_outline[:,0])
+        #    le = self._raw_outline[le_ind]
+        #else:
+        #    le = [0.0, 0.0]
 
-        # Translate to origin, rotate, and scale
-        self._normalize_points(self._raw_outline, le, te)
-        le_ind = np.argmin(np.abs(self._raw_outline[:,0]))
-        le = [0.0, 0.0]
-        te = (self._raw_outline[0]+self._raw_outline[-1])*0.5
+        ## Translate to origin, rotate, and scale
+        #self._normalize_points(self._raw_outline, le, te)
 
         # Create splines defining the outline
         self._x_outline, self._y_outline = self._create_splines_of_s(self._raw_outline)
@@ -330,17 +326,19 @@ class Airfoil:
         # Camber line estimate parameters
         num_camber_points = self._N_orig//5 # As recommended by Cody Cummings to avoid discontinuities in dyc/dx
         camber_deriv_edge_order = 2
-        if not self._le_at_origin:
-            x_c = np.linspace(le[0]+0.0001, te[0], num_camber_points)
+        le_ind = np.argmin(np.abs(self._raw_outline[:,0]))
+        te = (self._raw_outline[0]+self._raw_outline[-1])*0.5
+        if self._le_loc is None:
+            x_c = np.linspace(0.0001, te[0], num_camber_points)
         else:
-            x_c = np.linspace(le[0], te[0], num_camber_points)
+            x_c = np.linspace(self._le_loc[0], te[0], num_camber_points)
 
         # Get initial estimate for the camber line
-        y_t = np.interp(x_c, self._raw_outline[le_ind::-1,0], self._raw_outline[le_ind::-1, 1])
-        y_b = np.interp(x_c, self._raw_outline[le_ind:,0], self._raw_outline[le_ind:, 1])
+        y_t = np.interp(x_c, self._raw_outline[le_ind::-1,0], self._raw_outline[le_ind::-1,1])
+        y_b = np.interp(x_c, self._raw_outline[le_ind:,0], self._raw_outline[le_ind:,1])
         y_c = 0.5*(y_t+y_b)
-        if self._le_at_origin:
-            y_c[0] = 0.0
+        if self._le_loc is not None:
+            y_c[0] = self._le_loc[1]
 
         # A useful distribution
         x_space = np.linspace(0.0, 1.0, 1000)
@@ -381,19 +379,24 @@ class Airfoil:
 
             # Loop through points on the camber line to find where their normal intersects the outline
             for i in range(num_camber_points):
+                if self._le_loc is not None and i == 0:
+                    continue
+
+                # Get point information
                 xc = x_c[i]
                 yc = y_c[i]
                 bi = b[i]
 
+                # Estimate the intersection points
                 x_t[i], y_t[i], _ = self._get_intersection_point(xc, yc, bi, "top")
                 x_b[i], y_b[i], _ = self._get_intersection_point(xc, yc, bi, "bottom")
 
             # Calculate new camber line points
             x_c_new = 0.5*(x_t+x_b)
             y_c_new = 0.5*(y_t+y_b)
-            if self._le_at_origin:
-                x_c_new[0] = 0.0
-                y_c_new[0] = 0.0
+            if self._le_loc is not None:
+                x_c_new[0] = self._le_loc[0]
+                y_c_new[0] = self._le_loc[1]
 
             # Plot new and old estimate
             if False:
@@ -401,6 +404,8 @@ class Airfoil:
                 plt.plot(self._raw_outline[:,0], self._raw_outline[:,1], 'b-', label='Outline Data')
                 plt.plot(x_c, y_c, 'r--', label='Old Camber Line Estimate')
                 plt.plot(x_c_new, y_c_new, 'g--', label='New Camber Line Estimate')
+                plt.plot(x_t, y_t, 'rx')
+                plt.plot(x_b, y_b, 'ro')
                 plt.legend()
                 plt.gca().set_aspect('equal', adjustable='box')
                 plt.show()
@@ -424,13 +429,16 @@ class Airfoil:
         if self._verbose: print("Camber line solver converged.")
 
         # Calculate where the camber line intersects the outline to find the leading edge
-        if not self._le_at_origin:
+        if self._le_loc is None:
             dyc_dx = np.gradient(y_c, x_c, edge_order=2)
             b = dyc_dx[0]
             x_le, y_le, self._s_le = self._get_intersection_point(x_c[0], y_c[0], b, "leading_edge")
             le = np.array([x_le, y_le])
             x_c = np.insert(x_c, 0, le[0])
             y_c = np.insert(y_c, 0, le[1])
+        else:
+            le = self._le_loc
+
         if self._verbose: print("Leading edge: {0}".format(le))
 
         if self._verbose:
@@ -533,13 +541,13 @@ class Airfoil:
 
         # Start s in the middle of the respective surface
         if surface == "top":
-            s0 = 0.25
+            s0 = 0.24
             s1 = 0.26
         elif surface == "bottom":
-            s0 = 0.75
+            s0 = 0.74
             s1 = 0.76
         elif surface == "leading_edge":
-            s0 = 0.50
+            s0 = 0.49
             s1 = 0.51
 
         # Initial points on outline
@@ -556,7 +564,7 @@ class Airfoil:
         while abs(d1) > 1e-10:
             
             # Get new estimate in s
-            if d1 > 0.2: # Apply some relaxation when we're far away
+            if d1 > 0.2 or (s1 > 0.35 and s1 < 0.65): # Apply some relaxation when we're far away or near the leading edge (to keep from shooting to the other surface)
                 s2 = s1-0.2*d1*(s0-s1)/(d0-d1)
             else:
                 s2 = s1-d1*(s0-s1)/(d0-d1)
