@@ -29,13 +29,21 @@ class Airfoil:
         Dictionary or path to JSON object describing the airfoil.
 
     verbose : bool
+        Whether to display information on the progress of parameterizing the geometry
+        for an airfoil defined by a set of outline points. Defaults to False.
+
+    camber_relaxation : float
+        A value between 0.0 and 1.0 that defines how much of the update at each
+        iteration of the camber line solver should be accepted. Helpful for some
+        poorly behaved cases. Defaults to 1.0 (full update).
     """
 
-    def __init__(self, name, airfoil_input, verbose=False):
+    def __init__(self, name, airfoil_input, **kwargs):
         
         self.name = name
         self._load_params(airfoil_input)
-        self._verbose = verbose
+        self._verbose = kwargs.get("verbose", False)
+        self._camber_relaxation = kwargs.get("camber_relaxation", 1.0)
 
         # Load flaps
         self._load_flaps()
@@ -288,7 +296,10 @@ class Airfoil:
     def _calc_geometry_from_points(self):
         # Calculates the camber line and thickness distribution from the outline points.
         # Also scales the airfoil, places the leading edge at the origin, and rotates it so it is at zero angle of attack.
-        if self._verbose: print("Calculating camber line...")
+        if self._verbose:
+            print("Calculating camber line...")
+            print("{0:<20}{1:<20}".format("Iteration", "Max Approx Error"))
+            print("".join(["-"]*40))
 
         # Find the pseudo leading and trailing edge positions
         te = (self._raw_outline[0]+self._raw_outline[-1])*0.5
@@ -317,7 +328,6 @@ class Airfoil:
         else:
             x_c = np.linspace(le[0]+le_offset, te[0], num_camber_points)
 
-
         # Get initial estimate for the camber line and thickness distributions
         y_t = np.interp(x_c, self._raw_outline[le_ind::-1,0], self._raw_outline[le_ind::-1, 1])
         y_b = np.interp(x_c, self._raw_outline[le_ind:,0], self._raw_outline[le_ind:, 1])
@@ -342,15 +352,16 @@ class Airfoil:
         x_c_new= np.zeros(num_camber_points)
         y_c_new= np.zeros(num_camber_points)
 
-        # Iterate through camber line estimates
-        camber_error = 1
-
         # Check for symmetric airfoil
         if np.allclose(y_c, 0.0):
             camber_error = 0.0
+        else:
+            camber_error = 1.0
 
         # Iterate until convergence
+        iteration = 0
         while camber_error > 1e-10:
+            iteration += 1
 
             # Determine camber line slope
             dyc_dx = np.gradient(y_c, x_c, edge_order=camber_deriv_edge_order)
@@ -385,7 +396,8 @@ class Airfoil:
             x_diff = x_c_new-x_c
             y_diff = y_c_new-y_c
             camber_error = np.max(np.sqrt(x_diff*x_diff+y_diff*y_diff))
-            if self._verbose: print("Camber error: {0}".format(camber_error))
+            if self._verbose:
+                print("{0:<20}{1:<20}".format(iteration, camber_error))
 
             # Sort, just in case things got messed up
             sorted_ind = np.argsort(x_c_new)
@@ -393,8 +405,10 @@ class Airfoil:
             y_c_new = y_c_new[sorted_ind]
 
             # Update for next iteration
-            x_c = x_c_new
-            y_c = y_c_new
+            x_c = self._camber_relaxation*x_c_new+(1.0-self._camber_relaxation)*x_c
+            y_c = self._camber_relaxation*y_c_new+(1.0-self._camber_relaxation)*y_c
+
+        if self._verbose: print("Camber line solver converged.")
 
         # Calculate where the camber line intersects the outline to find the leading edge
         dyc_dx = np.gradient(y_c, x_c, edge_order=2)
@@ -430,13 +444,14 @@ class Airfoil:
         self._camber_line = interp.UnivariateSpline(camber_points[:,0], camber_points[:,1], k=5, s=1e-10)
         self._max_camber = np.max(camber_points[:,1])
 
-        # Calculate thickness
+        # Store camber line derivative
         y_c = self._camber_line(x_space)
         dyc_dx= np.gradient(y_c, x_space)
         self._camber_deriv = interp.UnivariateSpline(x_space, dyc_dx, k=5, s=1e-10)
         b = -1.0/dyc_dx
 
         # Find points on the surface to determine the thickness
+        if self._verbose: print("Calculating thickness distribution...", end="")
         x_t_t = np.zeros(x_space.shape)
         x_b_t = np.zeros(x_space.shape)
         y_t_t = np.zeros(x_space.shape)
@@ -449,9 +464,11 @@ class Airfoil:
             x_t_t[i], y_t_t[i],_ = self._get_intersection_point(xc, yc, bi, "top")
             x_b_t[i], y_b_t[i],_ = self._get_intersection_point(xc, yc, bi, "bottom")
 
+        # Store thickness distribution
         t = 0.5*np.sqrt((x_t_t-x_b_t)*(x_t_t-x_b_t)+(y_t_t-y_b_t)*(y_t_t-y_b_t))
         self._thickness = interp.UnivariateSpline(x_space, t, k=5, s=1e-10)
         self._max_thickness = np.max(t)
+        if self._verbose: print("Done")
 
         # Calculate estimated top and bottom points
         y_c_pred = self._camber_line(x_space)
@@ -1507,9 +1524,13 @@ class Airfoil:
             freedom are:
 
                 "alpha"
+
                 "Rey"
+
                 "Mach"
+
                 "trailing_flap_deflection"
+                
                 "trailing_flap_fraction"
 
             Each key should be one of these degrees of freedom. The value is a dictionary or a float
@@ -1530,9 +1551,13 @@ class Airfoil:
             If not specified, the above degrees of freedom default to the following:
 
                 "alpha" : 0.0
+
                 "Rey" : 100000.0
+
                 "Mach" : 0.0
+
                 "trailing_flap_deflection" : 0.0
+
                 "trailing_flap_fraction" : 0.0
 
             Please note that all angular degreees of freedom are in radians, rather than degrees.
