@@ -2587,7 +2587,7 @@ class Airfoil:
 
                 # Check if we have enough
                 if len(self._selected_ind) >= 2:
-                    plt.close()
+                    plt.close(fig)
 
             # Display
             plt.ion()
@@ -2595,12 +2595,13 @@ class Airfoil:
             ax.plot(alpha, CL, 'bo', picker=3)
             plt.xlabel("Alpha [deg]")
             plt.ylabel("Lift Coefficient")
-            plt.title("Select the lower then upper limits of the linear region.")
+            plt.title("Select the lower and upper limits of the linear region.")
             fig.canvas.mpl_connect('pick_event', on_pick)
             plt.show(block=True)
             plt.ioff()
 
             # Trim arrays
+            self._selected_ind = sorted(self._selected_ind)
             alpha = np.radians(alpha[self._selected_ind[0]:self._selected_ind[1]+1])
             CL = CL[self._selected_ind[0]:self._selected_ind[1]+1]
             Cm = Cm[self._selected_ind[0]:self._selected_ind[1]+1]
@@ -2630,6 +2631,7 @@ class Airfoil:
         if kwargs.get("plot_model", False):
 
             # CL
+            plt.close('all')
             fig, (ax0, ax1, ax2) = plt.subplots(nrows=1, ncols=3)
             fig.suptitle("Linear Model for {0}".format(self.name))
             ax0.set_title("CL")
