@@ -2531,3 +2531,159 @@ class Airfoil:
                     coef[i] = np.nan
 
         return coef
+
+
+    def generate_linear_model(self, **kwargs):
+        """Creates a linearized model of the airfoil coefficients in alpha. Pulls from the
+        database or poly_fit information to generate this model. Cannot be used on a type
+        "linear" airfoil.
+
+        update_type : bool, optional
+            Whether to change the type of the airfoil to "linear" once the model is determined.
+            Defaults to True.
+
+        plot_model : bool, optional
+            Whether to display a polar of the linear region determined. Defaults to False.
+
+        Rey : float, optional
+            Reynolds number at which to evaluate the model.
+
+        Mach : float, optional
+            Mach number at which to evaluate the model.
+        """
+
+        # Check for correct type
+        if self._type == "linear":
+            raise RuntimeError("generate_linear_model() cannot be called on a 'linear' type airfoil.")
+
+        # Determine region of linear lift
+        alpha_max = 0.0
+        alpha_min = 0.0
+        alpha = [0.0]
+        CL = [self.get_CL(alpha=0.0, **kwargs)]
+        Cm = [self.get_Cm(alpha=0.0, **kwargs)]
+        CD = [self.get_CD(alpha=0.0, **kwargs)]
+
+        # Increment up in alpha until nonlinear region is detected
+        while True:
+
+            # Get new coefficient values
+            alpha_max += np.radians(0.5)
+            alpha.append(alpha_max)
+            CL.append(self.get_CL(alpha=alpha_max, **kwargs))
+            Cm.append(self.get_Cm(alpha=alpha_max, **kwargs))
+            CD.append(self.get_CD(alpha=alpha_max, **kwargs))
+
+            # Generate new linear fit
+            coef_array,res,_,_,_ = np.polyfit(alpha, CL, 1, full=True)
+
+            # Check residuals
+            if res > 1e-5:
+                alpha.pop(-1)
+                self._CL_max = CL.pop(-1)
+                Cm.pop(-1)
+                CD.pop(-1)
+                break
+
+        # Increment down in alpha until nonlinear region is detected
+        while True:
+
+            # Get new coefficient values
+            alpha_min -= np.radians(0.5)
+            alpha.append(alpha_min)
+            CL.append(self.get_CL(alpha=alpha_min, **kwargs))
+            Cm.append(self.get_Cm(alpha=alpha_min, **kwargs))
+            CD.append(self.get_CD(alpha=alpha_min, **kwargs))
+
+            # Generate new linear fit
+            coef_array,res,_,_,_ = np.polyfit(alpha, CL, 1, full=True)
+
+            # Check residuals
+            if res > 1e-5:
+                alpha.pop(-1)
+                CL.pop(-1)
+                Cm.pop(-1)
+                CD.pop(-1)
+                break
+
+        # Get CL model
+        self._aL0 = coef_array[1]
+        self._CLa = coef_array[0]
+
+        # Get Cm model
+        coef_array = np.polyfit(alpha, Cm, 1)
+        self._Cma = coef_array[0]
+        self._CmL0 = self._Cma*self._aL0+coef_array[1]
+
+        # Get CD model
+        coef_array = np.polyfit(CL, CD, 2)
+        self._CD0 = coef_array[2]
+        self._CD1 = coef_array[1]
+        self._CD2 = coef_array[0]
+
+        # Plot model within linear region
+        if kwargs.get("plot_model", False):
+
+            # CL
+            fig, (ax0, ax1, ax2) = plt.subplots(nrows=1, ncols=3)
+            fig.suptitle("Linear Model for {0}".format(self.name))
+            a = np.linspace(min(alpha), max(alpha))
+            ax0.set_title("CL")
+            ax0.plot(alpha, CL, "gx", label="Data")
+            ax0.plot(a, a*self._CLa+self._aL0, "g-", label="Model")
+            ax0.legend()
+            ax0.set_xlabel("Angle of Attack [deg]")
+            ax0.set_ylabel("Lift Coefficient")
+
+            # Cm
+            ax1.set_title("Cm")
+            ax1.plot(alpha, Cm, 'bx', label="Data")
+            ax1.plot(a, (a-self._aL0)*self._Cma+self._CmL0, "b-", label="Model")
+            ax1.legend()
+            ax1.set_xlabel("Angle of Attack [deg]")
+            ax1.set_ylabel("Moment Coefficient")
+
+            # CD
+            CLs = np.linspace(min(CL), max(CL))
+            ax2.set_title("CD")
+            ax2.plot(CL, CD, 'rx', label="Data")
+            ax2.plot(CLs, self._CD0+self._CD1*CLs+self._CD2*CLs*CLs, 'r-', label="Model")
+            ax2.legend()
+            ax2.set_xlabel("Lift Coefficient")
+            ax2.set_ylabel("Drag Coefficient")
+            plt.show()
+
+        # Update type
+        if kwargs.get("update_type", True):
+            self._type = "linear"
+
+
+    def export_linear_model(self, **kwargs):
+        """Exports the linear coefficients used to predict the behavior of the airfoil.
+
+        Parameters
+        ----------
+        filename : str
+            JSON file to export the model data to.
+        """
+
+        # Check there is a model to export
+        if not hasattr(self, "_aL0"):
+            raise RuntimeError("A linear model for {0} could not be exported because it has none.".format(self.name))
+
+        # Parse coefficients
+        model_dict = {
+            "aL0" : self._aL0,
+            "CLa" : self._CLa,
+            "CmL0" : self._CmL0,
+            "Cma" : self._Cma,
+            "CD0" : self._CD0,
+            "CD1" : self._CD1,
+            "CD2" : self._CD2,
+            "CL_max" : self._CL_max
+        }
+
+        # Export
+        filename = kwargs.get("filename")
+        with open(filename, 'w') as export_file_handle:
+            json.dump(model_dict, export_file_handle, indent=4)
