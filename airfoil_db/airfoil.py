@@ -2606,6 +2606,9 @@ class Airfoil:
             Cm = Cm[self._selected_ind[0]:self._selected_ind[1]+1]
             CD = CD[self._selected_ind[0]:self._selected_ind[1]+1]
 
+        else:
+            alpha = np.radians(alpha)
+
         # Get CL model
         coef_array = np.polyfit(alpha, CL, 1)
         self._aL0 = coef_array[1]

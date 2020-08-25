@@ -14,7 +14,7 @@ airfoil_input = {
 }
 
 airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True)
-airfoil.generate_linear_model(Rey=1000000, plot_model=True)
+airfoil.generate_linear_model(Rey=1000000, plot_model=True, linear_limits=[-5.0, 5.0])
 airfoil.export_linear_model(filename="linear_model.json")
 #airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(0.0), plot=True)
 
