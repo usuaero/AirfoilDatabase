@@ -28,6 +28,9 @@ The following are keys which can be specified in the airfoil JSON object or dict
 >>**"NACA" : str, optional**
 >>>NACA designation for the airfoil. If given, the airfoil will automatically generate outline points using the NACA equations. Can only be NACA 4-digit series. Cannot be specified along with "outline_points".
 >>
+>>**"NACA_closed_te" : bool, optional**
+>>>Whether to use the NACA 4-digit equations which force the trailing edge to be closed. Defaults to False.
+>>
 >>**"max_camber" : float, optional**
 >>>Maximum camber of the airfoil as a fraction of the chord. Can be specified if "outline_points" and "NACA" are not specified. This and "max_thickness" affect the corrections for sweep applied in MachUpX. This has no effect on computations made within the Airfoil class. Defaults to 0.0.
 >>

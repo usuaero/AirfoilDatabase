@@ -210,6 +210,7 @@ class Airfoil:
         # NACA definition
         elif NACA is not None:
             self.geom_specification = "NACA"
+            self._naca_closed_te = geom_dict.get("NACA_closed_te", False)
             self._naca_des = NACA
 
             self._calc_geometry_from_NACA()
@@ -255,7 +256,10 @@ class Airfoil:
 
             # Thickness
             def thickness(x):
-                return 5.0*self._t*(0.2969*np.sqrt(x)-0.1260*x-0.3516*x*x+0.2843*x*x*x-0.1015*x*x*x*x)
+                if self._naca_closed_te:
+                    return 5.0*self._t*(0.2969*np.sqrt(x)-0.1260*x-0.3516*x*x+0.2843*x*x*x-0.1036*x*x*x*x)
+                else:
+                    return 5.0*self._t*(0.2969*np.sqrt(x)-0.1260*x-0.3516*x*x+0.2843*x*x*x-0.1015*x*x*x*x)
 
             self._thickness = thickness
 

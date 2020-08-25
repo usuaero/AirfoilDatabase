@@ -11,14 +11,15 @@ geometry_file = "dev/uCRM-9_wr0_xfoil.txt"
 airfoil_input = {
     "type" : "database",
     "geometry" : {
-        "outline_points" : geometry_file
-        #"NACA" : "9412"
+        #"outline_points" : geometry_file
+        "NACA" : "9412",
+        "NACA_closed_te" : True
     },
     "trailing_flap_type" : "parabolic"
 }
 
 airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True)
-#airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(30.0))#, plot=True, export="outline.txt")
+airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(0.0), plot=True)
 
 dofs = {
     "alpha" : {
