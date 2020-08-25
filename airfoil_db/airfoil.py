@@ -2632,7 +2632,7 @@ class Airfoil:
             ax0.plot(alpha, CL, "gx", label="Data")
             ax0.plot(a, a*self._CLa+self._aL0, "g-", label="Model")
             ax0.legend()
-            ax0.set_xlabel("Angle of Attack [deg]")
+            ax0.set_xlabel("Angle of Attack [rad]")
             ax0.set_ylabel("Lift Coefficient")
 
             # Cm
@@ -2640,7 +2640,7 @@ class Airfoil:
             ax1.plot(alpha, Cm, 'bx', label="Data")
             ax1.plot(a, (a-self._aL0)*self._Cma+self._CmL0, "b-", label="Model")
             ax1.legend()
-            ax1.set_xlabel("Angle of Attack [deg]")
+            ax1.set_xlabel("Angle of Attack [rad]")
             ax1.set_ylabel("Moment Coefficient")
 
             # CD
