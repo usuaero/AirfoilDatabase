@@ -2297,14 +2297,6 @@ class Airfoil:
         CL_kwargs['verbose'] = verbose
         CD_kwargs['verbose'] = verbose
         Cm_kwargs['verbose'] = verbose
-        # not sure why max_order is defaulted to the number of degrees of freedom - 1. Any one independent variable could need to be a higher polynomial order than the number of independent variables in the dataset. The two have no connection. For example, a CD vs CL plot has one independent variable (CL) yet CD is a parabolic function (typically)
-        # max_order = kwargs.pop("max_order", None)
-        # if "auto" in [CL_degrees, CD_degrees, Cm_degrees] and max_order is None:
-            # max_order = 1
-            # for i in range(self._num_dofs):
-                # dof_points = np.unique(self._data[:,i])
-                # dof_max_order = len(dof_points)-1
-                # max_order = max(max_order, dof_max_order)
 
         # CL
         if verbose: print('Performing CL curve fit')
@@ -2537,6 +2529,10 @@ class Airfoil:
         """Creates a linearized model of the airfoil coefficients in alpha. Pulls from the
         database or poly_fit information to generate this model. Cannot be used on a type
         "linear" airfoil.
+        
+        linear_limits : list, optional
+            Limits in alpha for which the behavior of the airfoil can be considered linear. If not
+            given, the user will be prompted to graphically select this region. Given in degrees.
 
         update_type : bool, optional
             Whether to change the type of the airfoil to "linear" once the model is determined.
@@ -2556,59 +2552,65 @@ class Airfoil:
         if self._type == "linear":
             raise RuntimeError("generate_linear_model() cannot be called on a 'linear' type airfoil.")
 
-        # Determine region of linear lift
-        alpha_max = 0.0
-        alpha_min = 0.0
-        alpha = [0.0]
-        CL = [self.get_CL(alpha=0.0, **kwargs)]
-        Cm = [self.get_Cm(alpha=0.0, **kwargs)]
-        CD = [self.get_CD(alpha=0.0, **kwargs)]
+        # Determine range of alpha
+        linear_limits = kwargs.get("linear_limits", None)
+        if linear_limits is None:
+            alpha = np.linspace(-20.0, 20.0)
+        else:
+            alpha = np.linspace(linear_limits[0], linear_limits[1])
 
-        # Increment up in alpha until nonlinear region is detected
-        while True:
+        # Generate dataset
+        CL = np.zeros(50)
+        Cm = np.zeros(50)
+        CD = np.zeros(50)
+        for i, a in enumerate(alpha):
+            try:
+                CL[i] = self.get_CL(alpha=np.radians(a), **kwargs)
+                Cm[i] = self.get_Cm(alpha=np.radians(a), **kwargs)
+                CD[i] = self.get_CD(alpha=np.radians(a), **kwargs)
+            except DatabaseBoundsError:
+                continue
 
-            # Get new coefficient values
-            alpha_max += np.radians(0.5)
-            alpha.append(alpha_max)
-            CL.append(self.get_CL(alpha=alpha_max, **kwargs))
-            Cm.append(self.get_Cm(alpha=alpha_max, **kwargs))
-            CD.append(self.get_CD(alpha=alpha_max, **kwargs))
+        # Plot dataset for user to select linear region
+        if linear_limits is None:
 
-            # Generate new linear fit
-            coef_array,res,_,_,_ = np.polyfit(alpha, CL, 1, full=True)
+            # Define picker
+            self._selected_ind = []
+            def on_pick(event):
 
-            # Check residuals
-            if res > 1e-5:
-                alpha.pop(-1)
-                self._CL_max = CL.pop(-1)
-                Cm.pop(-1)
-                CD.pop(-1)
-                break
+                # Get index
+                i = int(event.ind[0])
+                self._selected_ind.append(i)
 
-        # Increment down in alpha until nonlinear region is detected
-        while True:
+                # Add x
+                fig.axes[0].plot(alpha[i], CL[i], 'rx')
 
-            # Get new coefficient values
-            alpha_min -= np.radians(0.5)
-            alpha.append(alpha_min)
-            CL.append(self.get_CL(alpha=alpha_min, **kwargs))
-            Cm.append(self.get_Cm(alpha=alpha_min, **kwargs))
-            CD.append(self.get_CD(alpha=alpha_min, **kwargs))
+                # Check if we have enough
+                if len(self._selected_ind) >= 2:
+                    plt.close()
 
-            # Generate new linear fit
-            coef_array,res,_,_,_ = np.polyfit(alpha, CL, 1, full=True)
+            # Display
+            plt.ion()
+            fig, ax = plt.subplots()
+            ax.plot(alpha, CL, 'bo', picker=3)
+            plt.xlabel("Alpha [deg]")
+            plt.ylabel("Lift Coefficient")
+            plt.title("Select the lower then upper limits of the linear region.")
+            fig.canvas.mpl_connect('pick_event', on_pick)
+            plt.show(block=True)
+            plt.ioff()
 
-            # Check residuals
-            if res > 1e-5:
-                alpha.pop(-1)
-                CL.pop(-1)
-                Cm.pop(-1)
-                CD.pop(-1)
-                break
+            # Trim arrays
+            alpha = np.radians(alpha[self._selected_ind[0]:self._selected_ind[1]+1])
+            CL = CL[self._selected_ind[0]:self._selected_ind[1]+1]
+            Cm = Cm[self._selected_ind[0]:self._selected_ind[1]+1]
+            CD = CD[self._selected_ind[0]:self._selected_ind[1]+1]
 
         # Get CL model
+        coef_array = np.polyfit(alpha, CL, 1)
         self._aL0 = coef_array[1]
         self._CLa = coef_array[0]
+        self._CL_max = np.max(CL)
 
         # Get Cm model
         coef_array = np.polyfit(alpha, Cm, 1)
@@ -2627,10 +2629,9 @@ class Airfoil:
             # CL
             fig, (ax0, ax1, ax2) = plt.subplots(nrows=1, ncols=3)
             fig.suptitle("Linear Model for {0}".format(self.name))
-            a = np.linspace(min(alpha), max(alpha))
             ax0.set_title("CL")
             ax0.plot(alpha, CL, "gx", label="Data")
-            ax0.plot(a, a*self._CLa+self._aL0, "g-", label="Model")
+            ax0.plot(alpha, alpha*self._CLa+self._aL0, "g-", label="Model")
             ax0.legend()
             ax0.set_xlabel("Angle of Attack [rad]")
             ax0.set_ylabel("Lift Coefficient")
@@ -2638,16 +2639,15 @@ class Airfoil:
             # Cm
             ax1.set_title("Cm")
             ax1.plot(alpha, Cm, 'bx', label="Data")
-            ax1.plot(a, (a-self._aL0)*self._Cma+self._CmL0, "b-", label="Model")
+            ax1.plot(alpha, (alpha-self._aL0)*self._Cma+self._CmL0, "b-", label="Model")
             ax1.legend()
             ax1.set_xlabel("Angle of Attack [rad]")
             ax1.set_ylabel("Moment Coefficient")
 
             # CD
-            CLs = np.linspace(min(CL), max(CL))
             ax2.set_title("CD")
             ax2.plot(CL, CD, 'rx', label="Data")
-            ax2.plot(CLs, self._CD0+self._CD1*CLs+self._CD2*CLs*CLs, 'r-', label="Model")
+            ax2.plot(CL, self._CD0+self._CD1*CL+self._CD2*CL*CL, 'r-', label="Model")
             ax2.legend()
             ax2.set_xlabel("Lift Coefficient")
             ax2.set_ylabel("Drag Coefficient")
