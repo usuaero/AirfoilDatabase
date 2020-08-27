@@ -11,15 +11,15 @@ geometry_file = "dev/uCRM-9_wr0_xfoil.txt"
 airfoil_input = {
     "type" : "database",
     "geometry" : {
-        #"outline_points" : geometry_file
-        "NACA" : "9412",
-        "NACA_closed_te" : True
+        "outline_points" : geometry_file
+        #"NACA" : "9412",
+        #"NACA_closed_te" : True
     },
     "trailing_flap_type" : "parabolic"
 }
 
-airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True)
-airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(0.0), plot=True)
+airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True, camber_termination_tol=1e-6)
+#airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(0.0), plot=True)
 
 dofs = {
     "alpha" : {
@@ -51,7 +51,7 @@ dofs = {
 }
 
 # Generate or import database
-#airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, show_xfoil_output=False)
+airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, show_xfoil_output=True, xycm=[0.0, 0.0])
 #airfoil.export_database(filename="christian_database.txt")
 #airfoil.import_database(filename="database.txt")
 #try:

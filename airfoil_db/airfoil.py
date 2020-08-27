@@ -18,7 +18,11 @@ from .exceptions import DatabaseBoundsError
 
 
 class Airfoil:
-    """A class defining an airfoil.
+    """A class defining an airfoil. If the airfoil geometry is defined using outline
+    points, then when this class is initialized, a solver will be automatically
+    run to determine the camber line and thickness distribution of the airfoil.
+    The parameters "camber_relaxation", "le_loc", and "camber_termination_tol" then
+    have bearing on this solver.
 
     Parameters
     ----------
@@ -43,6 +47,10 @@ class Airfoil:
         to intersect this point. THIS POINT SHOULD LIE ON THE AIRFOIL OUTLINE. If not given,
         the camber line solver will try to iteratively find the leading edge (the point where
         the camber line intersects the front of the profile).
+
+    camber_termination_tol : float, optional
+        The tolerance below which the maximum approximate error in the camber line estimate
+        must fall in order for the camber line solver to terminate. Defaults to 1e-10.
     """
 
     def __init__(self, name, airfoil_input, **kwargs):
@@ -52,6 +60,7 @@ class Airfoil:
         self._verbose = kwargs.get("verbose", False)
         self._camber_relaxation = kwargs.get("camber_relaxation", 1.0)
         self._le_loc = kwargs.get("le_loc", None)
+        self._camber_termination_tol = kwargs.get("camber_termination_tol", 1e-10)
 
         # Load flaps
         self._load_flaps()
@@ -364,7 +373,7 @@ class Airfoil:
 
         # Iterate until convergence
         iteration = 0
-        while camber_error > 1e-10:
+        while camber_error > self._camber_termination_tol:
             iteration += 1
 
             # Determine camber line slope
@@ -1816,6 +1825,10 @@ class Airfoil:
             and the bottom. If a list, the first list element is the top trip location and the second list element
             is the bottom trip location. Defaults to 1.0 for both.
 
+        xycm : list, optional
+            x-y coordinates, non-dimensionalized by the chord length, of the reference point for determining the
+            moment coefficient. Defaults to the quater-chord.
+
         N_crit : float or list, optional
             Critical amplification exponent for the boundary layer in Xfoil. If a float, the value is the same for
             the top and the bottom. If a list, the first list element is for the top and the second list element is
@@ -1842,6 +1855,7 @@ class Airfoil:
         verbose = kwargs.get("verbose", True)
         show_xfoil_output = kwargs.get("show_xfoil_output", False)
         x_trip = kwargs.get("x_trip", [1.0, 1.0])
+        xycm = kwargs.get("xycm", [0.25, 0.0])
         if isinstance(x_trip, float):
             x_trip = [x_trip, x_trip]
         N_crit = kwargs.get("N_crit", [9.0, 9.0])
@@ -1938,6 +1952,11 @@ class Airfoil:
                                      '1',
                                      '',
                                      '']
+
+                        # Set moment reference point
+                        commands += ['XYCM',
+                                     str(xycm[0]),
+                                     str(xycm[1])]
 
                         # Set viscous mode
                         commands += ['OPER',
