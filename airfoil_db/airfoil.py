@@ -2316,14 +2316,6 @@ class Airfoil:
         CL_kwargs['verbose'] = verbose
         CD_kwargs['verbose'] = verbose
         Cm_kwargs['verbose'] = verbose
-        # not sure why max_order is defaulted to the number of degrees of freedom - 1. Any one independent variable could need to be a higher polynomial order than the number of independent variables in the dataset. The two have no connection. For example, a CD vs CL plot has one independent variable (CL) yet CD is a parabolic function (typically)
-        # max_order = kwargs.pop("max_order", None)
-        # if "auto" in [CL_degrees, CD_degrees, Cm_degrees] and max_order is None:
-            # max_order = 1
-            # for i in range(self._num_dofs):
-                # dof_points = np.unique(self._data[:,i])
-                # dof_max_order = len(dof_points)-1
-                # max_order = max(max_order, dof_max_order)
 
         # CL
         if verbose: print('Performing CL curve fit')
@@ -2550,3 +2542,172 @@ class Airfoil:
                     coef[i] = np.nan
 
         return coef
+
+
+    def generate_linear_model(self, **kwargs):
+        """Creates a linearized model of the airfoil coefficients in alpha. Pulls from the
+        database or poly_fit information to generate this model. Cannot be used on a type
+        "linear" airfoil.
+        
+        linear_limits : list, optional
+            Limits in alpha for which the behavior of the airfoil can be considered linear. If not
+            given, the user will be prompted to graphically select this region. Given in degrees.
+
+        update_type : bool, optional
+            Whether to change the type of the airfoil to "linear" once the model is determined.
+            Defaults to True.
+
+        plot_model : bool, optional
+            Whether to display a polar of the linear region determined. Defaults to False.
+
+        Rey : float, optional
+            Reynolds number at which to evaluate the model.
+
+        Mach : float, optional
+            Mach number at which to evaluate the model.
+        """
+
+        # Check for correct type
+        if self._type == "linear":
+            raise RuntimeError("generate_linear_model() cannot be called on a 'linear' type airfoil.")
+
+        # Determine range of alpha
+        linear_limits = kwargs.get("linear_limits", None)
+        if linear_limits is None:
+            alpha = np.linspace(-20.0, 20.0)
+        else:
+            alpha = np.linspace(linear_limits[0], linear_limits[1])
+
+        # Generate dataset
+        CL = np.zeros(50)
+        Cm = np.zeros(50)
+        CD = np.zeros(50)
+        for i, a in enumerate(alpha):
+            try:
+                CL[i] = self.get_CL(alpha=np.radians(a), **kwargs)
+                Cm[i] = self.get_Cm(alpha=np.radians(a), **kwargs)
+                CD[i] = self.get_CD(alpha=np.radians(a), **kwargs)
+            except DatabaseBoundsError:
+                continue
+
+        # Plot dataset for user to select linear region
+        if linear_limits is None:
+
+            # Define picker
+            self._selected_ind = []
+            def on_pick(event):
+
+                # Get index
+                i = int(event.ind[0])
+                self._selected_ind.append(i)
+
+                # Add x
+                fig.axes[0].plot(alpha[i], CL[i], 'rx')
+
+                # Check if we have enough
+                if len(self._selected_ind) >= 2:
+                    plt.close(fig)
+
+            # Display
+            plt.ion()
+            fig, ax = plt.subplots()
+            ax.plot(alpha, CL, 'bo', picker=3)
+            plt.xlabel("Alpha [deg]")
+            plt.ylabel("Lift Coefficient")
+            plt.title("Select the lower and upper limits of the linear region.")
+            fig.canvas.mpl_connect('pick_event', on_pick)
+            plt.show(block=True)
+            plt.ioff()
+
+            # Trim arrays
+            self._selected_ind = sorted(self._selected_ind)
+            alpha = np.radians(alpha[self._selected_ind[0]:self._selected_ind[1]+1])
+            CL = CL[self._selected_ind[0]:self._selected_ind[1]+1]
+            Cm = Cm[self._selected_ind[0]:self._selected_ind[1]+1]
+            CD = CD[self._selected_ind[0]:self._selected_ind[1]+1]
+
+        else:
+            alpha = np.radians(alpha)
+
+        # Get CL model
+        coef_array = np.polyfit(alpha, CL, 1)
+        self._aL0 = coef_array[1]
+        self._CLa = coef_array[0]
+        self._CL_max = np.max(CL)
+
+        # Get Cm model
+        coef_array = np.polyfit(alpha, Cm, 1)
+        self._Cma = coef_array[0]
+        self._CmL0 = self._Cma*self._aL0+coef_array[1]
+
+        # Get CD model
+        coef_array = np.polyfit(CL, CD, 2)
+        self._CD0 = coef_array[2]
+        self._CD1 = coef_array[1]
+        self._CD2 = coef_array[0]
+
+        # Plot model within linear region
+        if kwargs.get("plot_model", False):
+
+            # CL
+            plt.close('all')
+            fig, (ax0, ax1, ax2) = plt.subplots(nrows=1, ncols=3)
+            fig.suptitle("Linear Model for {0}".format(self.name))
+            ax0.set_title("CL")
+            ax0.plot(alpha, CL, "gx", label="Data")
+            ax0.plot(alpha, alpha*self._CLa+self._aL0, "g-", label="Model")
+            ax0.legend()
+            ax0.set_xlabel("Angle of Attack [rad]")
+            ax0.set_ylabel("Lift Coefficient")
+
+            # Cm
+            ax1.set_title("Cm")
+            ax1.plot(alpha, Cm, 'bx', label="Data")
+            ax1.plot(alpha, (alpha-self._aL0)*self._Cma+self._CmL0, "b-", label="Model")
+            ax1.legend()
+            ax1.set_xlabel("Angle of Attack [rad]")
+            ax1.set_ylabel("Moment Coefficient")
+
+            # CD
+            ax2.set_title("CD")
+            ax2.plot(CL, CD, 'rx', label="Data")
+            ax2.plot(CL, self._CD0+self._CD1*CL+self._CD2*CL*CL, 'r-', label="Model")
+            ax2.legend()
+            ax2.set_xlabel("Lift Coefficient")
+            ax2.set_ylabel("Drag Coefficient")
+            plt.show()
+
+        # Update type
+        if kwargs.get("update_type", True):
+            self._type = "linear"
+
+
+    def export_linear_model(self, **kwargs):
+        """Exports the linear coefficients used to predict the behavior of the airfoil.
+
+        Parameters
+        ----------
+        filename : str
+            JSON file to export the model data to.
+        """
+
+        # Check there is a model to export
+        if not hasattr(self, "_aL0"):
+            raise RuntimeError("A linear model for {0} could not be exported because it has none.".format(self.name))
+
+        # Parse coefficients
+        model_dict = {
+            "aL0" : self._aL0,
+            "CLa" : self._CLa,
+            "CmL0" : self._CmL0,
+            "Cma" : self._Cma,
+            "CD0" : self._CD0,
+            "CD1" : self._CD1,
+            "CD2" : self._CD2,
+            "CL_max" : self._CL_max
+        }
+
+        # Export
+        filename = kwargs.get("filename")
+        with open(filename, 'w') as export_file_handle:
+            json.dump(model_dict, export_file_handle, indent=4)

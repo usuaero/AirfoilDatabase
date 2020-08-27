@@ -4,12 +4,13 @@ import numpy as np
 import math as m
 from mpl_toolkits.mplot3d import Axes3D
 
-geometry_file = "dev/uCRM-9_wr0_xfoil.txt"
+#geometry_file = "dev/uCRM-9_wr0_xfoil.txt"
 #geometry_file = "dev/64A204.txt"
 #geometry_file = "dev/NACA_9412_geom.txt"
 #geometry_file = "dev/NACA_0012_geom.txt"
 airfoil_input = {
     "type" : "database",
+<<<<<<< HEAD
     "geometry" : {
         "outline_points" : geometry_file
         #"NACA" : "9412",
@@ -19,6 +20,14 @@ airfoil_input = {
 }
 
 airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True, camber_termination_tol=1e-6)
+=======
+    "input_file" : "MMXX_airfoil_database.muxfdb"
+}
+
+airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True)
+airfoil.generate_linear_model(Rey=1000000, plot_model=True)
+airfoil.export_linear_model(filename="linear_model.json")
+>>>>>>> master
 #airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(0.0), plot=True)
 
 dofs = {
