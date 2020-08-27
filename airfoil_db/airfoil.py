@@ -1689,7 +1689,7 @@ class Airfoil:
         if kwargs.get("verbose", True):
             percent_success = round(self._data.shape[0]/num_total_runs*100, 2)
             print("\nDatabase generation complete.")
-            print("Convergent results obtained from Xfoil for {0}% of the design space.".format(percent_success))
+            print("Convergent results obtained from Xfoil for {0}% of the requested points.".format(percent_success))
 
         # Update type
         if kwargs.get("update_type", True):
