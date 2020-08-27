@@ -1574,6 +1574,10 @@ class Airfoil:
                 "index" : int
                     Index of the column for this degree of freedom in the database.
 
+                "log_step" : bool, optional
+                    Whether the steps in this dof should be spaced linearly (False) or logarithmically
+                    (True). Defaults to False.
+
             If a float, the degree of freedom is assumed to be constant at that value.
             
             If not specified, the above degrees of freedom default to the following:
@@ -1713,8 +1717,12 @@ class Airfoil:
             upper = limits[1]
             N = input_dict.get("steps")
             index = input_dict.get("index", None)
+            log_step = input_dict.get("log_step", False)
         
-        return list(np.linspace(lower, upper, N)), index
+        if log_step:
+            return list(np.logspace(np.log10(lower), np.log10(upper), N)), index
+        else:
+            return list(np.linspace(lower, upper, N)), index
 
 
     def export_database(self, **kwargs):
