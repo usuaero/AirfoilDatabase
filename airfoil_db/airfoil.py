@@ -1574,6 +1574,10 @@ class Airfoil:
                 "index" : int
                     Index of the column for this degree of freedom in the database.
 
+                "log_step" : bool, optional
+                    Whether the steps in this dof should be spaced linearly (False) or logarithmically
+                    (True). Defaults to False.
+
             If instead of perturbing a variable, you want the database to be evaluated at a constant value of
             that variable, a float should be given instead of a dictionary. That variable will then not be considered
             a degree of freedom of the database and will not appear in the database.
@@ -1597,6 +1601,8 @@ class Airfoil:
 
             The above input will run the airfoil through angles of attack from -15 to 15 degrees at a Reynolds number
             of 2900000.0 and through flap deflections from -20 to 20 degrees with a chord fraction of 25%.
+
+            If a float, the degree of freedom is assumed to be constant at that value.
             
             If not specified, each degree of freedom defaults to the following:
 
@@ -1711,7 +1717,7 @@ class Airfoil:
         if kwargs.get("verbose", True):
             percent_success = round(self._data.shape[0]/num_total_runs*100, 2)
             print("\nDatabase generation complete.")
-            print("Convergent results obtained from Xfoil for {0}% of the design space.".format(percent_success))
+            print("Convergent results obtained from Xfoil for {0}% of the requested points.".format(percent_success))
 
         # Update type
         if kwargs.get("update_type", True):
@@ -1735,8 +1741,12 @@ class Airfoil:
             upper = limits[1]
             N = input_dict.get("steps")
             index = input_dict.get("index", None)
+            log_step = input_dict.get("log_step", False)
         
-        return list(np.linspace(lower, upper, N)), index
+        if log_step:
+            return list(np.logspace(np.log10(lower), np.log10(upper), N)), index
+        else:
+            return list(np.linspace(lower, upper, N)), index
 
 
     def export_database(self, **kwargs):
