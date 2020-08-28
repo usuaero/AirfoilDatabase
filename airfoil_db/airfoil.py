@@ -123,6 +123,9 @@ class Airfoil:
             for i in range(self._num_dofs):
                 self._data_norms[0,i] = np.max(np.abs(self._data[:,i]))
 
+            # Make sure we don't divide by zero
+            self._data_norms[np.where(self._data_norms==0.0)] = 1.0
+
             # Normalize independent vars
             self._normed_ind_vars = self._data[:,:self._num_dofs]/self._data_norms
 
@@ -1733,6 +1736,7 @@ class Airfoil:
             upper = input_dict
             N = 1
             index = None
+            log_step = False
 
         # Range
         else:
@@ -1742,6 +1746,10 @@ class Airfoil:
             N = input_dict.get("steps")
             index = input_dict.get("index", None)
             log_step = input_dict.get("log_step", False)
+
+            # Check that the range will actually have multiple points
+            if N == 1:
+                raise IOError("A range with only one step may not be specified for a degree of freedom. Please give a single float instead.")
         
         if log_step:
             return list(np.logspace(np.log10(lower), np.log10(upper), N)), index
