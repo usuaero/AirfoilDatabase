@@ -30,11 +30,7 @@ if __name__=="__main__":
             "steps" : 11,
             "index" : 1
         },
-        "Rey" : {
-            "range" : [100000, 400000],
-            "steps" : 2,
-            "index" : 2
-        },
+        "Rey" : 2900000.0,
         "Mach" : {
             "range" : [0.0, 0.4],
             "steps" : 3,
@@ -45,12 +41,7 @@ if __name__=="__main__":
             "steps" : 7,
             "index" : 0
         },
-        #"trailing_flap_fraction" : 0.25
-        "trailing_flap_fraction" : {
-            "range" : [0.0, 0.5],
-            "steps" : 3,
-            "index" : 3
-        }
+        "trailing_flap_fraction" : 0.25
     }
 
     # Generate database using xfoil
@@ -63,21 +54,18 @@ if __name__=="__main__":
     # Declare the order of the fit for each degree of freedom for each coefficient
     CL_fit_orders = {
         "alpha" : 3,
-        "Rey" : 1,
         "trailing_flap" : 1,
         "Mach" : 2
     }
 
     CD_fit_orders = {
         "alpha" : 4,
-        "Rey" : 1,
         "trailing_flap" : 4,
         "Mach" : 2
     }
 
     Cm_fit_orders = {
         "alpha" : 1,
-        "Rey" : 1,
         "trailing_flap" : 1,
         "Mach" : 2
     }

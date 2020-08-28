@@ -4,13 +4,12 @@ import numpy as np
 import math as m
 from mpl_toolkits.mplot3d import Axes3D
 
-#geometry_file = "dev/uCRM-9_wr0_xfoil.txt"
+geometry_file = "dev/uCRM-9_wr0_xfoil.txt"
 #geometry_file = "dev/64A204.txt"
 #geometry_file = "dev/NACA_9412_geom.txt"
 #geometry_file = "dev/NACA_0012_geom.txt"
 airfoil_input = {
     "type" : "database",
-<<<<<<< HEAD
     "geometry" : {
         "outline_points" : geometry_file
         #"NACA" : "9412",
@@ -19,25 +18,17 @@ airfoil_input = {
     "trailing_flap_type" : "parabolic"
 }
 
-airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True, camber_termination_tol=1e-6)
-=======
-    "input_file" : "MMXX_airfoil_database.muxfdb"
-}
-
-airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True)
-airfoil.generate_linear_model(Rey=1000000, plot_model=True)
-airfoil.export_linear_model(filename="linear_model.json")
->>>>>>> master
+airfoil = adb.Airfoil("test_airfoil", airfoil_input)
 #airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(0.0), plot=True)
 
 dofs = {
     "alpha" : {
-        "range" : [m.radians(-5.0), m.radians(5.0)],
+        "range" : [m.radians(-15.0), m.radians(15.0)],
         "steps" : 11,
         "index" : 1
     },
     "Rey" : {
-        "range" : [100000, 400000],
+        "range" : [1000000, 4000000],
         "steps" : 2,
         "index" : 2
     },
@@ -60,14 +51,9 @@ dofs = {
 }
 
 # Generate or import database
-airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, show_xfoil_output=True, xycm=[0.0, 0.0])
-#airfoil.export_database(filename="christian_database.txt")
-#airfoil.import_database(filename="database.txt")
-#try:
-#    print(airfoil.get_CL(alpha=np.linspace(100, 200, 50)))
-#except adb.DatabaseBoundsError as e:
-#    print("Invalid indices: {0}".format(e.exception_indices))
-#    print("Inputs: {0}".format(e.inputs_dict))
+#airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100)
+#airfoil.export_database(filename="database.txt")
+airfoil.import_database(filename="database.txt")
 
 # Fit orders
 CL_fit_orders = {
@@ -97,34 +83,34 @@ Cm_fit_orders = {
 #airfoil.export_polynomial_fits(filename="christian_database.json")
 #airfoil.import_polynomial_fits(filename="database.json")
 
-## Compare interpolation and fits
-#alphas = np.radians(np.linspace(-10, 10, 20))
-#flaps = np.radians(np.linspace(10, -10, 20))
-#Re = 200000
-#c_tf = 0.0
-#
-#fig = plt.figure(figsize=plt.figaspect(1.0))
-#ax = fig.gca(projection='3d')
-#for a in alphas:
-#
-#    # Interpolation results
-#    airfoil.set_type("database")
-#    CL_int = airfoil.get_CL(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
-#    CD_int = airfoil.get_CD(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
-#
-#    # Polynomial results
-#    airfoil.set_type("poly_fit")
-#    CL_fit = airfoil.get_CL(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
-#    CD_fit = airfoil.get_CD(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
-#
-#    # Plot
-#    alpha_graph = np.full(20, a)
-#    #ax.plot(alpha_graph, flaps, CL_int, 'rx')
-#    #ax.plot(alpha_graph, flaps, CL_fit, 'b-')
-#    ax.plot(alpha_graph, flaps, CD_int, 'x', color='orange')
-#    ax.plot(alpha_graph, flaps, CD_fit, 'g-')
-#
-#ax.set_xlabel("Angle of Attack")
-#ax.set_ylabel("Flap Deflection")
-#ax.set_zlabel("CL")
-#plt.show()
+# Compare interpolation and fits
+alphas = np.radians(np.linspace(-10, 10, 20))
+flaps = np.radians(np.linspace(10, -10, 20))
+Re = 2000000
+c_tf = 0.2
+
+fig = plt.figure(figsize=plt.figaspect(1.0))
+ax = fig.gca(projection='3d')
+for a in alphas:
+
+    # Interpolation results
+    airfoil.set_type("database")
+    CL_int = airfoil.get_CL(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
+    CD_int = airfoil.get_CD(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
+
+    # Polynomial results
+    #airfoil.set_type("poly_fit")
+    #CL_fit = airfoil.get_CL(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
+    #CD_fit = airfoil.get_CD(alpha=a, trailing_flap_deflection=flaps, Rey=Re, trailing_flap_fraction=c_tf)
+
+    # Plot
+    alpha_graph = np.full(20, a)
+    ax.plot(alpha_graph, flaps, CL_int, 'rx')
+    #ax.plot(alpha_graph, flaps, CL_fit, 'b-')
+    #ax.plot(alpha_graph, flaps, CD_int, 'x', color='orange')
+    #ax.plot(alpha_graph, flaps, CD_fit, 'g-')
+
+ax.set_xlabel("Angle of Attack")
+ax.set_ylabel("Flap Deflection")
+ax.set_zlabel("CL")
+plt.show()

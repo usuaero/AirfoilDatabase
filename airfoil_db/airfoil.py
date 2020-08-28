@@ -72,7 +72,7 @@ class Airfoil:
         self._allowable_dofs = ["alpha", "Rey", "Mach", "trailing_flap_deflection", "trailing_flap_fraction"]
         self._dof_defaults = {
             "alpha" : 0.0,
-            "Rey" : 100000.0,
+            "Rey" : 1e6,
             "Mach" : 0.0,
             "trailing_flap_deflection" : 0.0,
             "trailing_flap_fraction" : 0.0
@@ -118,6 +118,14 @@ class Airfoil:
             else:
                 self._type = database_type
 
+            # Set up data normalization
+            self._data_norms = np.zeros((1,self._num_dofs))
+            for i in range(self._num_dofs):
+                self._data_norms[0,i] = np.max(np.abs(self._data[:,i]))
+
+            # Normalize independent vars
+            self._normed_ind_vars = self._data[:,:self._num_dofs]/self._data_norms
+
         # Check for polynomial fits
         if database_type == "poly_fit":
             if not hasattr(self, "_CL_poly_coefs"):
@@ -129,6 +137,8 @@ class Airfoil:
         if database_type == "functional":
             if not hasattr(self, "_CL"):
                 raise RuntimeWarning("Airfoil {0} does not have functional definitions of coefficients. Reverting to type '{1}' for computations.".format(self.name, self._type))
+            else:
+                self._type = database_type
 
 
     def _load_params(self, airfoil_input):
@@ -619,7 +629,7 @@ class Airfoil:
 
     def check_against_NACA(self, naca_des):
         """Checks the error in the camber and thickness against that predicted by the NACA equations. This is recommended as a check for the user
-        if unusual geometries are being imported.
+        if unusual geometries are being imported. Checks against the open trailing edge formulation of the NACA equations.
 
         Parameters
         ----------
@@ -692,7 +702,7 @@ class Airfoil:
             Angle of attack in radians. Defaults to 0.0.
 
         Rey : float, optional
-            Reynolds number. Defaults to 100000.
+            Reynolds number. Defaults to 1000000.
 
         Mach : float, optional
             Mach number. Defaults to 0.
@@ -766,7 +776,7 @@ class Airfoil:
             Angle of attack in radians. Defaults to 0.0.
 
         Rey : float, optional
-            Reynolds number. Defaults to 100000.
+            Reynolds number. Defaults to 1000000.
 
         Mach : float, optional
             Mach number. Defaults to 0.
@@ -815,7 +825,7 @@ class Airfoil:
             Angle of attack in radians. Defaults to 0.0.
 
         Rey : float, optional
-            Reynolds number. Defaults to 100000.
+            Reynolds number. Defaults to 1000000.
 
         Mach : float, optional
             Mach number. Defaults to 0.
@@ -883,7 +893,8 @@ class Airfoil:
             param_vals[:,i] = kwargs.get(dof, self._dof_defaults[dof])
 
         # Interpolate
-        return_val = interp.griddata(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+data_index].flatten(), param_vals, method='linear').flatten()
+        return_val = interp.griddata(self._normed_ind_vars, self._data[:,self._num_dofs+data_index].flatten(), param_vals/self._data_norms, method='linear').flatten()
+        #return_val = interp.griddata(self._data[:,:self._num_dofs], self._data[:,self._num_dofs+data_index].flatten(), param_vals, method='linear').flatten()
 
         # Check for going out of bounds
         if np.isnan(return_val).any():
@@ -902,7 +913,7 @@ class Airfoil:
         Parameters
         ----------
         Rey : float, optional
-            Reynolds number. Defaults to 100000.
+            Reynolds number. Defaults to 1000000.
 
         Mach : float, optional
             Mach number. Defaults to 0.
@@ -988,7 +999,7 @@ class Airfoil:
             Angle of attack in radians. Defaults to 0.0.
 
         Rey : float, optional
-            Reynolds number. Defaults to 100000.
+            Reynolds number. Defaults to 1000000.
 
         Mach : float, optional
             Mach number. Defaults to 0.
@@ -1039,7 +1050,7 @@ class Airfoil:
             Angle of attack in radians. Defaults to 0.0.
 
         Rey : float, optional
-            Reynolds number. Defaults to 100000.
+            Reynolds number. Defaults to 1000000.
 
         Mach : float, optional
             Mach number. Defaults to 0.
@@ -1072,7 +1083,7 @@ class Airfoil:
 
             # Get center Re value
             dx = kwargs.get("dx", 1000)
-            Rey = kwargs.pop("Rey", 100000)
+            Rey = kwargs.pop("Rey", 1000000)
             
             # Calculate forward and backward points
             CL1 = self.get_CL(Rey=Rey+dx, **kwargs)
@@ -1090,7 +1101,7 @@ class Airfoil:
             Angle of attack in radians. Defaults to 0.0.
 
         Rey : float, optional
-            Reynolds number. Defaults to 100000.
+            Reynolds number. Defaults to 1000000.
 
         Mach : float, optional
             Mach number. Defaults to 0.
@@ -1549,21 +1560,10 @@ class Airfoil:
         ----------
         degrees_of_freedom : dict
             A dict specifying which degrees of freedom the database should perturb. Allowable degrees of 
-            freedom are:
+            freedom are "alpha", "Rey", "Mach", "trailing_flap_deflection", and "trailing_flap_fraction".
 
-                "alpha"
-
-                "Rey"
-
-                "Mach"
-
-                "trailing_flap_deflection"
-
-                "trailing_flap_fraction"
-
-            Each key should be one of these degrees of freedom. The value is a dictionary or a float
-            describing how that DOF should be perturbed. If a dictionary, the following keys must be
-            specified:
+            Each key should be one of these degrees of freedom. To specify a range for the degree of freedom,
+            a dictionary with the following keys should be given:
 
                 "range" : list
                     The lower and upper limits for this DOF.
@@ -1574,13 +1574,35 @@ class Airfoil:
                 "index" : int
                     Index of the column for this degree of freedom in the database.
 
-            If a float, the degree of freedom is assumed to be constant at that value.
+            If instead of perturbing a variable, you want the database to be evaluated at a constant value of
+            that variable, a float should be given instead of a dictionary. That variable will then not be considered
+            a degree of freedom of the database and will not appear in the database.
             
-            If not specified, the above degrees of freedom default to the following:
+            An example is shown below:
+
+                dofs = {
+                    "alpha" : {
+                        "range" : [math.radians(-15.0), math.radians(15.0)],
+                        "steps" : 21,
+                        "index" : 1
+                    },
+                    "Rey" : 2900000.0,
+                    "trailing_flap_deflection" : {
+                        "range" : [math.radians(-20.0), math.radians(20.0)],
+                        "steps" : 1,
+                        "index" : 0
+                    },
+                    "trailing_flap_fraction" : 0.25
+                }
+
+            The above input will run the airfoil through angles of attack from -15 to 15 degrees at a Reynolds number
+            of 2900000.0 and through flap deflections from -20 to 20 degrees with a chord fraction of 25%.
+            
+            If not specified, each degree of freedom defaults to the following:
 
                 "alpha" : 0.0
 
-                "Rey" : 100000.0
+                "Rey" : 1000000.0
 
                 "Mach" : 0.0
 
@@ -1802,7 +1824,7 @@ class Airfoil:
             Angle(s) of attack to calculate the coefficients at in radians. Defaults to 0.0.
 
         Rey : float or list of float
-            Reynolds number(s) to calculate the coefficients at. Defaults to 100000.
+            Reynolds number(s) to calculate the coefficients at. Defaults to 1000000.
 
         Mach : float or list of float
             Mach number(s) to calculate the coefficients at. Defaults to 0.0.
