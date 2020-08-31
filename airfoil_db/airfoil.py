@@ -5,14 +5,13 @@ import json
 import copy
 import os
 import operator
-import io
-import sys
 import warnings
+
 import matplotlib.pyplot as plt
 import scipy.interpolate as interp
-import scipy.signal as sig
 import subprocess as sp
 import numpy as np
+
 from .poly_fits import multivariablePolynomialFit, multivariablePolynomialFunction, autoPolyFit, multivariableRMS, multivariableR2
 from .exceptions import DatabaseBoundsError
 
@@ -23,6 +22,24 @@ class Airfoil:
     run to determine the camber line and thickness distribution of the airfoil.
     The parameters "camber_relaxation", "le_loc", and "camber_termination_tol" then
     have bearing on this solver.
+
+    When using the member methods get_CL, get_CD, get_Cm, get_CLa, get_CLM, get_CLRe,
+    and get_aL0, the default parameters are dependent upon the type of airfoil.
+
+    For all airfoil types except 'functional', 'alpha', 'trailing_flap_deflection',
+    and 'trailing_flap_fraction' default to 0.0.
+
+    For 'functional' airfoils, the defaults are specified by the user.
+
+    For 'linear' airfoils, 'Mach' and 'Rey' have no effect on computations.
+
+    For 'database' airfoils, 'Mach' and 'Rey' default to the average value in the database,
+    if the database is dependent on that variable. Otherwise, they default to the value
+    specified as constant when the database was generated.
+
+    For 'poly_fit' airfoils, 'Mach' and 'Rey' default to the values given in the fit file.
+    If export_polynomial_fits() is used, these values are the same as those for the 
+    'database' type.
 
     Parameters
     ----------
@@ -129,6 +146,19 @@ class Airfoil:
             # Normalize independent vars
             self._normed_ind_vars = self._data[:,:self._num_dofs]/self._data_norms
 
+            # Determine default Mach and Reynolds number
+            if "Rey" in list(self._dof_db_cols.keys()):
+                i = self._dof_db_cols["Rey"]
+                Re_min = np.min(self._data[:,i])
+                Re_max = np.max(self._data[:,i])
+                self._dof_defaults["Rey"] = 0.5*(Re_max+Re_min)
+
+            if "Mach" in list(self._dof_db_cols.keys()):
+                i = self._dof_db_cols["Mach"]
+                M_min = np.min(self._data[:,i])
+                M_max = np.max(self._data[:,i])
+                self._dof_defaults["Mach"] = 0.5*(M_max+M_min)
+
         # Check for polynomial fits
         if database_type == "poly_fit":
             if not hasattr(self, "_CL_poly_coefs"):
@@ -171,8 +201,6 @@ class Airfoil:
             if abs(self._CL_max) < 1e-10:
                 warnings.warn("You have specified a maximum lift coefficient of 0. Are you sure you want to do this?...")
             self._CmL0 = self._input_dict.get("CmL0", 0.0)
-            self._CLM = self._input_dict.get("CLM", 0.0)
-            self._CLRe = self._input_dict.get("CLRe", 0.0)
 
         # For functional, store functions
         elif self._type == "functional":
@@ -705,10 +733,10 @@ class Airfoil:
             Angle of attack in radians. Defaults to 0.0.
 
         Rey : float, optional
-            Reynolds number. Defaults to 1000000.
+            Reynolds number.
 
         Mach : float, optional
-            Mach number. Defaults to 0.
+            Mach number.
 
         trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
@@ -779,10 +807,10 @@ class Airfoil:
             Angle of attack in radians. Defaults to 0.0.
 
         Rey : float, optional
-            Reynolds number. Defaults to 1000000.
+            Reynolds number.
 
         Mach : float, optional
-            Mach number. Defaults to 0.
+            Mach number.
 
         trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
@@ -828,10 +856,10 @@ class Airfoil:
             Angle of attack in radians. Defaults to 0.0.
 
         Rey : float, optional
-            Reynolds number. Defaults to 1000000.
+            Reynolds number.
 
         Mach : float, optional
-            Mach number. Defaults to 0.
+            Mach number.
 
         trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
@@ -916,10 +944,10 @@ class Airfoil:
         Parameters
         ----------
         Rey : float, optional
-            Reynolds number. Defaults to 1000000.
+            Reynolds number.
 
         Mach : float, optional
-            Mach number. Defaults to 0.
+            Mach number.
 
         trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
@@ -995,6 +1023,7 @@ class Airfoil:
 
     def get_CLM(self, **kwargs):
         """Returns the lift slope with respect to Mach number using a forward-difference approximation.
+        Simply returns 0 for a type 'linear' airfoil.
 
         Parameters
         ----------
@@ -1002,10 +1031,10 @@ class Airfoil:
             Angle of attack in radians. Defaults to 0.0.
 
         Rey : float, optional
-            Reynolds number. Defaults to 1000000.
+            Reynolds number.
 
         Mach : float, optional
-            Mach number. Defaults to 0.
+            Mach number.
 
         trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
@@ -1024,7 +1053,7 @@ class Airfoil:
 
         # Linear model
         if self._type == "linear":
-            return self._CLM
+            return 0.0
 
         # Database
         elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
@@ -1046,6 +1075,7 @@ class Airfoil:
 
     def get_CLRe(self, **kwargs):
         """Returns the lift slope with respect to Reynolds number using a backward-difference approximation.
+        Simply returns 0 for a type 'linear' airfoil.
 
         Parameters
         ----------
@@ -1053,10 +1083,10 @@ class Airfoil:
             Angle of attack in radians. Defaults to 0.0.
 
         Rey : float, optional
-            Reynolds number. Defaults to 1000000.
+            Reynolds number.
 
         Mach : float, optional
-            Mach number. Defaults to 0.
+            Mach number.
 
         trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
@@ -1075,7 +1105,7 @@ class Airfoil:
 
         # Linear model
         if self._type == "linear":
-            return self._CLRe
+            return 0.0
 
         # Database
         elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
@@ -1104,10 +1134,10 @@ class Airfoil:
             Angle of attack in radians. Defaults to 0.0.
 
         Rey : float, optional
-            Reynolds number. Defaults to 1000000.
+            Reynolds number.
 
         Mach : float, optional
-            Mach number. Defaults to 0.
+            Mach number.
 
         trailing_flap_deflection : float, optional
             Trailing flap deflection in radians. Defaults to 0.
@@ -1904,31 +1934,31 @@ class Airfoil:
 
         # Get states
         # Angle of attack
-        alphas = kwargs.get("alpha", [self._dof_defaults["alpha"]])
+        alphas = kwargs.get("alpha", [0.0])
         if isinstance(alphas, float):
             alphas = [alphas]
         first_dim = len(alphas)
     
         # Reynolds number
-        Reys = kwargs.get("Rey", [self._dof_defaults["Rey"]])
+        Reys = kwargs.get("Rey", [1000000.0])
         if isinstance(Reys, float):
             Reys = [Reys]
         second_dim = len(Reys)
 
         # Mach number
-        Machs = kwargs.get("Mach", [self._dof_defaults["Mach"]])
+        Machs = kwargs.get("Mach", [0.0])
         if isinstance(Machs, float):
             Machs = [Machs]
         third_dim = len(Machs)
 
         # Flap deflections
-        delta_fts = kwargs.get("trailing_flap_deflection", [self._dof_defaults["trailing_flap_deflection"]])
+        delta_fts = kwargs.get("trailing_flap_deflection", [0.0])
         if isinstance(delta_fts, float):
             delta_fts = [delta_fts]
         fourth_dim = len(delta_fts)
 
         # Flap fractions
-        c_fts = kwargs.get("trailing_flap_fraction", [self._dof_defaults["trailing_flap_fraction"]])
+        c_fts = kwargs.get("trailing_flap_fraction", [0.0])
         if isinstance(c_fts, float):
             c_fts = [c_fts]
         fifth_dim = len(c_fts)
@@ -1947,14 +1977,11 @@ class Airfoil:
             if os.path.isfile(item) and ".pacc" in item or ".geom" in item:
                 os.remove(item)
 
-
         # Loop through flap deflections and fractions
         if verbose:
             print("Running Xfoil...")
             print("{0:>25}{1:>25}{2:>25}".format("Percent Complete", "Flap Deflection [deg]", "Flap Fraction"))
             print(''.join(['-']*75))
-
-
         num_xfoil_runs = fourth_dim*fifth_dim
         for l, delta_ft in enumerate(delta_fts):
             for m, c_ft in enumerate(c_fts):
@@ -2454,6 +2481,7 @@ class Airfoil:
         export["tag"] = "Polynomial fit to database for {0} airfoil.".format(self.name)
         export["degrees_of_freedom"] = self._dof_db_order
         export["limits"] = self._dof_limits
+        export["defaults"] = self._dof_defaults
         export["fit_degrees"] = {}
         export["fit_degrees"]["CL"] = self._CL_degrees
         export["fit_degrees"]["CD"] = self._CD_degrees

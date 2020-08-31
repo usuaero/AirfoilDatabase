@@ -54,6 +54,7 @@ dofs = {
 #airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100)
 #airfoil.export_database(filename="database.txt")
 airfoil.import_database(filename="database.txt")
+print(airfoil._dof_defaults)
 
 # Fit orders
 CL_fit_orders = {
@@ -78,9 +79,9 @@ Cm_fit_orders = {
 }
 
 # Generate or import fits
-#airfoil.generate_polynomial_fit(CL_degrees=CL_fit_orders, CD_degrees=CD_fit_orders, Cm_degrees=Cm_fit_orders)
+airfoil.generate_polynomial_fit(CL_degrees=CL_fit_orders, CD_degrees=CD_fit_orders, Cm_degrees=Cm_fit_orders)
 #airfoil.generate_polynomial_fit(CL_degrees="auto", CD_degrees="auto", Cm_degrees="auto", max_order=6)
-#airfoil.export_polynomial_fits(filename="christian_database.json")
+airfoil.export_polynomial_fits(filename="fits.json")
 #airfoil.import_polynomial_fits(filename="database.json")
 
 # Compare interpolation and fits

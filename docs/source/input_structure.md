@@ -1,5 +1,7 @@
 # Input Structure
-As an initializer, the Airfoil class takes a JSON object (file) or Python dictionary. This object describes the geometry of the airfoil, the trailing flap (if present), and how its aerodynamics are to be predicted, whether using linear predictions, a database, or polynomial fits. The main purpose of this input structure is to allow native interface with [MachUpX](https://www.github.com/usuaero/MachUpX). Generating or exporting a database cannot be specified through the input object. This is done using the Airfoil class methods (see [Airfoil Class](airfoil_class) for more information).
+As an initializer, the Airfoil class takes a JSON object (file) or Python dictionary. This object describes the geometry of the airfoil, the trailing flap (if present), and how its aerodynamics are to be predicted, whether using linear predictions, a database, or polynomial fits. The main purpose of this input structure is to allow native interface with [MachUpX](https://www.github.com/usuaero/MachUpX).
+
+Generating or exporting a database cannot be specified through the input; this is done using the Airfoil class methods (see [Airfoil Class](airfoil_class) for more information). If you wish to use the Airfoil class to generate a database, all that is required to input are the geometry specifications.
 
 The following are keys which can be specified in the airfoil JSON object or dictionary.
 
@@ -94,6 +96,8 @@ The following are keys which can be specified in the airfoil JSON object or dict
 >>>
 >>>"trailing_flap_fraction" : float
 >>>>Trailing flap fraction of the chord length.
+>>
+>>This function should have defined defaults for each parameter in case they are not given.
 >
 >**"CD" : func**
 >>Function handle returning the coefficient of drag based on the given parameters. Same as "CL".

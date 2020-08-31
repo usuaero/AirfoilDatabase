@@ -8,7 +8,7 @@ Airfoil Database
    introduction
    installation
    xfoil_installation
-   creating_input_files
+   input_structure
    airfoil_class
    error_handling
    support
