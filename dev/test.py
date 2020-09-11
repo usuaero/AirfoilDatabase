@@ -4,7 +4,9 @@ import numpy as np
 import math as m
 from mpl_toolkits.mplot3d import Axes3D
 
-geometry_file = "dev/uCRM-9_wr0_xfoil.txt"
+#geometry_file = "dev/uCRM-9_wr0_xfoil.txt"
+#geometry_file = "dev/symmetric.dat"
+geometry_file = "dev/MMXX0700cTE4.muxf"
 #geometry_file = "dev/64A204.txt"
 #geometry_file = "dev/NACA_9412_geom.txt"
 #geometry_file = "dev/NACA_0012_geom.txt"
@@ -12,14 +14,14 @@ airfoil_input = {
     "type" : "database",
     "geometry" : {
         "outline_points" : geometry_file
-        #"NACA" : "9412",
+        #"NACA" : "0012",
         #"NACA_closed_te" : True
     },
     "trailing_flap_type" : "parabolic"
 }
 
-airfoil = adb.Airfoil("test_airfoil", airfoil_input)
-#airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(0.0), plot=True)
+airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True)
+#airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(0.0), export="dev/symmetric.dat")
 
 dofs = {
     "alpha" : {
@@ -79,9 +81,9 @@ Cm_fit_orders = {
 }
 
 # Generate or import fits
-airfoil.generate_polynomial_fit(CL_degrees=CL_fit_orders, CD_degrees=CD_fit_orders, Cm_degrees=Cm_fit_orders)
+#airfoil.generate_polynomial_fit(CL_degrees=CL_fit_orders, CD_degrees=CD_fit_orders, Cm_degrees=Cm_fit_orders)
 #airfoil.generate_polynomial_fit(CL_degrees="auto", CD_degrees="auto", Cm_degrees="auto", max_order=6)
-airfoil.export_polynomial_fits(filename="fits.json")
+#airfoil.export_polynomial_fits(filename="fits.json")
 #airfoil.import_polynomial_fits(filename="database.json")
 
 # Compare interpolation and fits

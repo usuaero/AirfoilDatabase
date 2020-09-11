@@ -421,7 +421,8 @@ class Airfoil:
             dyc_dx = np.gradient(y_c, x_c, edge_order=camber_deriv_edge_order)
             
             # Determine slope of lines perpendicular to the camber
-            b = -1.0/dyc_dx
+            with np.errstate(divide="ignore"):
+                b = -1.0/dyc_dx
 
             # Loop through points on the camber line to find where their normal intersects the outline
             for i in range(num_camber_points):
@@ -516,7 +517,8 @@ class Airfoil:
         y_c = self._camber_line(x_space)
         dyc_dx= np.gradient(y_c, x_space)
         self._camber_deriv = interp.UnivariateSpline(x_space, dyc_dx, k=5, s=1e-10)
-        b = -1.0/dyc_dx
+        with np.errstate(divide="ignore"):
+            b = -1.0/dyc_dx
 
         # Find points on the surface to determine the thickness
         if self._verbose: print("Calculating thickness distribution...", end="")
@@ -655,7 +657,10 @@ class Airfoil:
 
 
     def _distance(self, x0, y0, x, y, b):
-        return (-b*x0+y0+b*x-y)/np.sqrt(b*b+1)
+        if not np.isnan(b) and not np.isinf(b):
+            return (-b*x0+y0+b*x-y)/np.sqrt(b*b+1)
+        else:
+            return abs(x0-x)
 
 
     def check_against_NACA(self, naca_des):
