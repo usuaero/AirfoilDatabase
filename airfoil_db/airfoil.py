@@ -13,7 +13,7 @@ import subprocess as sp
 import numpy as np
 
 from .poly_fits import multivariablePolynomialFit, multivariablePolynomialFunction, autoPolyFit, multivariableRMS, multivariableR2
-from .exceptions import DatabaseBoundsError
+from .exceptions import DatabaseBoundsError, CamberSolverNotConvergedError
 
 
 class Airfoil:
@@ -68,6 +68,9 @@ class Airfoil:
     camber_termination_tol : float, optional
         The tolerance below which the maximum approximate error in the camber line estimate
         must fall in order for the camber line solver to terminate. Defaults to 1e-10.
+
+    max_iterations : int, optional
+        Maximum number of iterations for the camber line solver. Defaults to 100.
     """
 
     def __init__(self, name, airfoil_input, **kwargs):
@@ -78,6 +81,7 @@ class Airfoil:
         self._camber_relaxation = kwargs.get("camber_relaxation", 1.0)
         self._le_loc = kwargs.get("le_loc", None)
         self._camber_termination_tol = kwargs.get("camber_termination_tol", 1e-10)
+        self._max_iterations = kwargs.get("max_iterations", 100)
 
         # Load flaps
         self._load_flaps()
@@ -472,6 +476,10 @@ class Airfoil:
             # Update for next iteration
             x_c = self._camber_relaxation*x_c_new+(1.0-self._camber_relaxation)*x_c
             y_c = self._camber_relaxation*y_c_new+(1.0-self._camber_relaxation)*y_c
+
+            # Check iteration limit
+            if iteration == self._max_iterations:
+                raise CamberSolverNotConvergedError(self.name, camber_error)
 
         if self._verbose: print("Camber line solver converged.")
 

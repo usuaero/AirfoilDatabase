@@ -5,7 +5,6 @@ class DatabaseBoundsError(Exception):
 
     Attributes
     ----------
-
     airfoil : str
         The name of the airfoil for which this exception occurred.
 
@@ -29,3 +28,25 @@ class DatabaseBoundsError(Exception):
 
     def __str__(self):
         return self.message+" Airfoil: {0}".format(self.airfoil)
+
+
+class CamberSolverNotConvergedError(Exception):
+    """An exception thrown when the camber line solver fails to converge.
+
+    Attributes
+    ----------
+    airfoil : str
+        The name of the airfoil for which this exception occurred.
+
+    final_error : float
+        The final approximate error of the solver.
+
+    message : str
+        A message about the error.
+    """
+
+    def __init__(self, airfoil, final_error):
+        self.airfoil = airfoil
+        self.final_error = final_error
+        self.message = "The camber line solver for {0} failed to converge. Final error: {1}".format(self.airfoil, self.final_error)
+        super().__init__(self.message)

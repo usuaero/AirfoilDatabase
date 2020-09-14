@@ -6,7 +6,8 @@ from mpl_toolkits.mplot3d import Axes3D
 
 #geometry_file = "dev/uCRM-9_wr0_xfoil.txt"
 #geometry_file = "dev/symmetric.dat"
-geometry_file = "dev/MMXX0700cTE4.muxf"
+#geometry_file = "dev/MMXX0700cTE4.muxf"
+geometry_file = "dev/Eppler_335_profile.csv"
 #geometry_file = "dev/64A204.txt"
 #geometry_file = "dev/NACA_9412_geom.txt"
 #geometry_file = "dev/NACA_0012_geom.txt"
@@ -20,7 +21,7 @@ airfoil_input = {
     "trailing_flap_type" : "parabolic"
 }
 
-airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True)
+airfoil = adb.Airfoil("test_airfoil", airfoil_input, verbose=True, camber_termination_tol=1e-11)
 #airfoil.get_outline_points(trailing_flap_fraction=0.3, trailing_flap_deflection=np.radians(0.0), export="dev/symmetric.dat")
 
 dofs = {
