@@ -1846,7 +1846,8 @@ class Airfoil:
 
 
     def import_database(self, **kwargs):
-        """Imports the specified database.
+        """Imports the specified database. Please note that if you have generated your own database not
+        using AirfoilDatabase, angle of attack should be stored in radians, rather than degrees.
 
         Parameters
         ----------

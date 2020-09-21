@@ -18,6 +18,8 @@ The following are keys which can be specified in the airfoil JSON object or dict
 >
 >**"input_file" : str, optional**
 >>File to read database or fit data from. The file specified here should match the "type" of the airfoil specified (e.g. if "type" is "database", this should be the database file).
+>>
+>>A note about database files: if the database was generated outside of AirfoilDatabase, be sure the angle of attack is stored in radians, not degrees.
 >
 >**"geometry" : dict, optional**
 >>Describes the geometry of the airfoil.
