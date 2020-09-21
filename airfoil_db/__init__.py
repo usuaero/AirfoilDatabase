@@ -1,2 +1,2 @@
 from .airfoil import Airfoil
-from .exceptions import *
+from .exceptions import DatabaseBoundsError, CamberSolverNotConvergedError

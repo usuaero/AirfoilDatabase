@@ -77,11 +77,19 @@ class Airfoil:
         
         self.name = name
         self._load_params(airfoil_input)
-        self._verbose = kwargs.get("verbose", False)
-        self._camber_relaxation = kwargs.get("camber_relaxation", 1.0)
-        self._le_loc = kwargs.get("le_loc", None)
-        self._camber_termination_tol = kwargs.get("camber_termination_tol", 1e-10)
-        self._max_iterations = kwargs.get("max_iterations", 100)
+        if "camber_solver_kwargs" in list(self._input_dict.keys()):
+            kwarg_dict = airfoil_input["camber_solver_kwargs"]
+            self._verbose = kwarg_dict.get("verbose", False)
+            self._camber_relaxation = kwarg_dict.get("camber_relaxation", 1.0)
+            self._le_loc = kwarg_dict.get("le_loc", None)
+            self._camber_termination_tol = kwarg_dict.get("camber_termination_tol", 1e-10)
+            self._max_iterations = kwarg_dict.get("max_iterations", 100)
+        else:
+            self._verbose = kwargs.get("verbose", False)
+            self._camber_relaxation = kwargs.get("camber_relaxation", 1.0)
+            self._le_loc = kwargs.get("le_loc", None)
+            self._camber_termination_tol = kwargs.get("camber_termination_tol", 1e-10)
+            self._max_iterations = kwargs.get("max_iterations", 100)
 
         # Load flaps
         self._load_flaps()
