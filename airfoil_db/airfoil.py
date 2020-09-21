@@ -1699,6 +1699,9 @@ class Airfoil:
         show_xfoil_output : bool, optional
             Display whatever Xfoil prints out. Defaults to False.
 
+        show_xfoil_plots : bool, optional
+            Display Xfoil plots. Defaults to True.
+
         verbose : bool, optional
             Defaults to True
         """
@@ -1928,6 +1931,9 @@ class Airfoil:
         show_xfoil_output : bool, optional
             Display whatever Xfoil outputs from the command line interface. Defaults to False.
 
+        show_xfoil_plots : bool, optional
+            Display Xfoil plots. Defaults to True.
+
         verbose : bool, optional
 
         Returns
@@ -2045,6 +2051,12 @@ class Airfoil:
                         commands += ['XYCM',
                                      str(xycm[0]),
                                      str(xycm[1])]
+
+                        # Turn off plots
+                        if not kwargs.get("show_xfoil_plots", True):
+                            commands += ['PLOP',
+                                         'G',
+                                         '']
 
                         # Set viscous mode
                         commands += ['OPER',

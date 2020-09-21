@@ -14,8 +14,8 @@ geometry_file = "dev/Eppler_335_profile.csv"
 airfoil_input = {
     "type" : "database",
     "geometry" : {
-        "outline_points" : geometry_file
-        #"NACA" : "0012",
+        #"outline_points" : geometry_file
+        "NACA" : "0012"
         #"NACA_closed_te" : True
     },
     "trailing_flap_type" : "parabolic"
@@ -54,9 +54,9 @@ dofs = {
 }
 
 # Generate or import database
-#airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100)
+airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, show_xfoil_plots=False)
 #airfoil.export_database(filename="database.txt")
-airfoil.import_database(filename="database.txt")
+#airfoil.import_database(filename="database.txt")
 print(airfoil._dof_defaults)
 
 # Fit orders
