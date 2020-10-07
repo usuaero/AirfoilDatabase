@@ -54,10 +54,11 @@ dofs = {
 }
 
 # Generate or import database
-airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, show_xfoil_plots=False)
+#airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, show_xfoil_plots=False)
 #airfoil.export_database(filename="database.txt")
-#airfoil.import_database(filename="database.txt")
-print(airfoil._dof_defaults)
+airfoil.import_database(filename="database.txt")
+print("Imported database")
+airfoil.generate_linear_model()
 
 # Fit orders
 CL_fit_orders = {

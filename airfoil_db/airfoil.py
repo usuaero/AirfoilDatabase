@@ -2676,14 +2676,14 @@ class Airfoil:
         # Determine range of alpha
         linear_limits = kwargs.get("linear_limits", None)
         if linear_limits is None:
-            alpha = np.linspace(-20.0, 20.0)
+            alpha = np.linspace(-20.0, 20.0, 30)
         else:
             alpha = np.linspace(linear_limits[0], linear_limits[1])
 
         # Generate dataset
-        CL = np.zeros(50)
-        Cm = np.zeros(50)
-        CD = np.zeros(50)
+        CL = np.zeros(30)
+        Cm = np.zeros(30)
+        CD = np.zeros(30)
         for i, a in enumerate(alpha):
             try:
                 CL[i] = self.get_CL(alpha=np.radians(a), **kwargs)
@@ -2716,13 +2716,15 @@ class Airfoil:
             ax.plot(alpha, CL, 'bo', picker=3)
             plt.xlabel("Alpha [deg]")
             plt.ylabel("Lift Coefficient")
-            plt.title("Select the lower and upper limits of the linear region.")
+            plt.title("To generate a linear model, select the lower and upper limits of the linear region.")
             fig.canvas.mpl_connect('pick_event', on_pick)
             plt.show(block=True)
             plt.ioff()
 
             # Trim arrays
             self._selected_ind = sorted(self._selected_ind)
+            if len(self._selected_ind) != 2:
+                raise RuntimeError("No points were selected to determine the linear region.")
             alpha = np.radians(alpha[self._selected_ind[0]:self._selected_ind[1]+1])
             CL = CL[self._selected_ind[0]:self._selected_ind[1]+1]
             Cm = Cm[self._selected_ind[0]:self._selected_ind[1]+1]
