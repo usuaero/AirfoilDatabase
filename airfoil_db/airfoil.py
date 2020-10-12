@@ -1702,6 +1702,9 @@ class Airfoil:
         show_xfoil_plots : bool, optional
             Display Xfoil plots. Defaults to True.
 
+        resize_xfoil_window : float, optional
+            resizes the xfoil window to screen size fraction. Xfoil defaults to 0.8 window/screen size. This variable defaults to None. Has no effect if show_xfoil_plots is False.
+
         verbose : bool, optional
             Defaults to True
         """
