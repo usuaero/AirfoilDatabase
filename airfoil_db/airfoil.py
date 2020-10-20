@@ -1702,6 +1702,9 @@ class Airfoil:
         show_xfoil_plots : bool, optional
             Display Xfoil plots. Defaults to True.
 
+        resize_xfoil_window : float, optional
+            resizes the xfoil window to screen size fraction. Xfoil defaults to 0.8 window/screen size. This variable defaults to None. Has no effect if show_xfoil_plots is False.
+
         verbose : bool, optional
             Defaults to True
         """
@@ -1934,6 +1937,9 @@ class Airfoil:
 
         show_xfoil_plots : bool, optional
             Display Xfoil plots. Defaults to True.
+        
+        resize_xfoil_window : float, optional
+            resizes the xfoil window to screen size fraction. Xfoil defaults to 0.8 window/screen size. This variable defaults to None. Has no effect if show_xfoil_plots is False.
 
         verbose : bool, optional
 
@@ -1991,6 +1997,9 @@ class Airfoil:
             c_fts = [c_fts]
         fifth_dim = len(c_fts)
 
+        # xfoil window resizing
+        resize_xfoil_window = kwargs.get('resize_xfoil_window', None)
+
         # Initialize coefficient arrays
         CL = np.empty((first_dim, second_dim, third_dim, fourth_dim, fifth_dim))
         CD = np.empty((first_dim, second_dim, third_dim, fourth_dim, fifth_dim))
@@ -2035,6 +2044,16 @@ class Airfoil:
 
                         commands = []
 
+                        # Turn off plots
+                        if not kwargs.get("show_xfoil_plots", True):
+                            commands += ['PLOP',
+                                         'G',
+                                         '']
+                        elif resize_xfoil_window != None:
+                            commands += ['PLOP',
+                                         'W {}'.format(resize_xfoil_window),
+                                         '']
+
                         # Read in geometry
                         commands += ['LOAD {0}'.format(outline_points),
                                      '{0}'.format(self.name)]
@@ -2052,12 +2071,6 @@ class Airfoil:
                         commands += ['XYCM',
                                      str(xycm[0]),
                                      str(xycm[1])]
-
-                        # Turn off plots
-                        if not kwargs.get("show_xfoil_plots", True):
-                            commands += ['PLOP',
-                                         'G',
-                                         '']
 
                         # Set viscous mode
                         commands += ['OPER',
