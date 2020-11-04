@@ -1087,7 +1087,7 @@ class Airfoil:
         elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
 
             # Check the database is dependent on Mach
-            if (self._type == "database" or self._type == "functional") and "Mach" not in self._dof_db_order:
+            if (self._type == "database" or self._type == "poly_fit") and "Mach" not in self._dof_db_order:
                 return 0.0
 
             # Get center Mach value
@@ -1102,7 +1102,7 @@ class Airfoil:
 
 
     def get_CLRe(self, **kwargs):
-        """Returns the lift slope with respect to Reynolds number using a backward-difference approximation.
+        """Returns the lift slope with respect to Reynolds number using a central-difference approximation.
         Simply returns 0 for a type 'linear' airfoil.
 
         Parameters
@@ -1139,7 +1139,7 @@ class Airfoil:
         elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
 
             # Check the database is dependent on Re
-            if (self._type == "database" or self._type == "functional") and "Rey" not in self._dof_db_order:
+            if (self._type == "database" or self._type == "poly_fit") and "Rey" not in self._dof_db_order:
                 return 0.0
 
             # Get center Re value
@@ -1154,7 +1154,7 @@ class Airfoil:
 
 
     def get_CLa(self, **kwargs):
-        """Returns the lift slope using a backward-difference approximation.
+        """Returns the lift slope using a central-difference approximation.
 
         Parameters
         ----------
@@ -1190,7 +1190,7 @@ class Airfoil:
         elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
 
             # Check the database is dependent on alpha
-            if (self._type == "database" or self._type == "functional") and "alpha" not in self._dof_db_order:
+            if (self._type == "database" or self._type == "poly_fit") and "alpha" not in self._dof_db_order:
                 return 0.0
 
             # Get center alpha value
