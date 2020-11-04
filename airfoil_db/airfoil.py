@@ -1087,7 +1087,7 @@ class Airfoil:
         elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
 
             # Check the database is dependent on Mach
-            if "Mach" not in self._dof_db_order:
+            if (self._type == "database" or self._type == "functional") and "Mach" not in self._dof_db_order:
                 return 0.0
 
             # Get center Mach value
@@ -1139,7 +1139,7 @@ class Airfoil:
         elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
 
             # Check the database is dependent on Re
-            if "Rey" not in self._dof_db_order:
+            if (self._type == "database" or self._type == "functional") and "Rey" not in self._dof_db_order:
                 return 0.0
 
             # Get center Re value
@@ -1190,7 +1190,7 @@ class Airfoil:
         elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
 
             # Check the database is dependent on alpha
-            if self._type == "database" and "alpha" not in self._dof_db_order:
+            if (self._type == "database" or self._type == "functional") and "alpha" not in self._dof_db_order:
                 return 0.0
 
             # Get center alpha value
