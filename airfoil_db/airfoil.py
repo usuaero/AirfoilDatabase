@@ -133,6 +133,10 @@ class Airfoil:
 
         """
 
+        # Check for proper type spec
+        if database_type not in ["linear", "database", "poly_fit", "functional"]:
+            raise IOError("{0} is not a valid type specification.".format(database_type))
+
         # Check for linear data
         if database_type == "linear":
             if not hasattr(self, "_CLa"):
