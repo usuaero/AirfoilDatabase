@@ -998,10 +998,13 @@ class Airfoil:
             
             return aL0
 
-        # Database
+        # Database/poly fit/functional
+        # Use secant method in alpha to find a_L0
         elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
 
-            # Use secant method in alpha to find a_L0
+            # Remove alpha from kwargs
+            kwargs.pop('alpha')
+
             # Initialize secant method
             a0 = 0.0
             CL0 = self.get_CL(alpha=a0, **kwargs)
