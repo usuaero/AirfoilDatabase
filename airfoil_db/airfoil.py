@@ -1007,7 +1007,7 @@ class Airfoil:
         elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
 
             # Remove alpha from kwargs
-            kwargs.pop('alpha')
+            kwargs.pop('alpha', None)
 
             # Initialize secant method
             a0 = 0.0
