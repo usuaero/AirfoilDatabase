@@ -1190,7 +1190,7 @@ class Airfoil:
         elif self._type == "database" or self._type == "poly_fit" or self._type == "functional":
 
             # Check the database is dependent on alpha
-            if "alpha" not in self._dof_db_order:
+            if self._type == "database" and "alpha" not in self._dof_db_order:
                 return 0.0
 
             # Get center alpha value
