@@ -13,7 +13,7 @@ import subprocess as sp
 import numpy as np
 
 from .poly_fits import multivariablePolynomialFit, multivariablePolynomialFunction, autoPolyFit, multivariableRMS, multivariableR2
-from .exceptions import DatabaseBoundsError, CamberSolverNotConvergedError
+from .exceptions import DatabaseBoundsError, CamberSolverNotConvergedError, PolyFitBoundsError
 
 
 class Airfoil:
@@ -2662,6 +2662,10 @@ class Airfoil:
             for j in range(self._num_dofs):
                 if x[j,i] > self._dof_limits[j][1] or x[j,i] < self._dof_limits[j][0]:
                     coef[i] = np.nan
+
+        # Check for going out of bounds
+        if np.isnan(coef).any():
+            raise PolyFitBoundsError(self.name, np.argwhere(np.isnan(coef)).flatten(), kwargs)
 
         return coef
 
