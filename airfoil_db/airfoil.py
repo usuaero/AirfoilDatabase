@@ -116,6 +116,25 @@ class Airfoil:
                 self.import_polynomial_fits(filename=input_file)
 
 
+        self._raise_poly_bounds_error = True
+
+
+    def set_err_state(self, **kwargs):
+        """Sets the error state for the airfoil. Each may be specified as 'raise' or 'ignore'.
+
+        Parameters
+        ----------
+        poly_fit_bounds : str, optional
+            How to handle PolyFitBoundsError. Defaults to 'raise'.
+        """
+
+        # Polynomial fit bounds
+        if kwargs.get("poly_fit_bounds", "raise") == "raise":
+            self._raise_poly_bounds_error = True
+        else:
+            self._raise_poly_bounds_error = False
+
+
     def set_verbosity(self, verbosity):
         """Sets the verbosity of the airfoil."""
         self._verbose = verbosity
@@ -2658,14 +2677,15 @@ class Airfoil:
             coef = multivariablePolynomialFunction(self._Cm_poly_coefs, self._Cm_degrees, x)
 
         # Check limits
-        for i in range(N):
-            for j in range(self._num_dofs):
-                if x[j,i] > self._dof_limits[j][1] or x[j,i] < self._dof_limits[j][0]:
-                    coef[i] = np.nan
+        if self._raise_poly_bounds_error:
+            for i in range(N):
+                for j in range(self._num_dofs):
+                    if x[j,i] > self._dof_limits[j][1] or x[j,i] < self._dof_limits[j][0]:
+                        coef[i] = np.nan
 
-        # Check for going out of bounds
-        if np.isnan(coef).any():
-            raise PolyFitBoundsError(self.name, np.argwhere(np.isnan(coef)).flatten(), kwargs)
+            # Check for going out of bounds
+            if np.isnan(coef).any():
+                raise PolyFitBoundsError(self.name, np.argwhere(np.isnan(coef)).flatten(), kwargs)
 
         return coef
 
