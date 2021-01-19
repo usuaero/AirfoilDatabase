@@ -2544,6 +2544,10 @@ class Airfoil:
         filename : str
             JSON object to write polynomial fit data to.
 
+        write_limits : bool, optional
+            Whether to limit the polynomial fits based on the original range of data.
+            Defaults to True.
+
         """
 
         # Get filename
@@ -2553,7 +2557,8 @@ class Airfoil:
         export = {}
         export["tag"] = "Polynomial fit to database for {0} airfoil.".format(self.name)
         export["degrees_of_freedom"] = self._dof_db_order
-        export["limits"] = self._dof_limits
+        if kwargs.get("write_limits"):
+            export["limits"] = self._dof_limits
         export["defaults"] = self._dof_defaults
         export["fit_degrees"] = {}
         export["fit_degrees"]["CL"] = self._CL_degrees
@@ -2605,7 +2610,7 @@ class Airfoil:
         # Parse input dict
         self._dof_db_order = input_dict["degrees_of_freedom"]
         self._num_dofs = len(self._dof_db_order)
-        self._dof_limits = input_dict["limits"]
+        self._dof_limits = input_dict.get("limits", [[-np.inf, np.inf]]*self._num_dofs)
         self._CL_degrees = input_dict["fit_degrees"]["CL"]
         self._CD_degrees = input_dict["fit_degrees"]["CD"]
         self._Cm_degrees = input_dict["fit_degrees"]["Cm"]
