@@ -1324,7 +1324,7 @@ class Airfoil:
             trailing_flap_fraction = kwargs.get("trailing_flap_fraction", 0.0)
             close_te = kwargs.get("close_te", False)
 
-            if not kwargs.get("original_points", False)
+            if not kwargs.get("original_points", False):
             
                 # Zach's method of determining NACA airfoils with deflected parabolic flaps (actually works really well for all of them...)
 
