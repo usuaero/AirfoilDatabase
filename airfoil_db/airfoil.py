@@ -1740,7 +1740,12 @@ class Airfoil:
             Display Xfoil plots. Defaults to True.
 
         resize_xfoil_window : float, optional
-            resizes the xfoil window to screen size fraction. Xfoil defaults to 0.8 window/screen size. This variable defaults to None. Has no effect if show_xfoil_plots is False.
+            resizes the xfoil window to screen size fraction. Xfoil defaults to 0.8 window/screen size.
+            This variable defaults to None. Has no effect if show_xfoil_plots is False.
+
+        CD_type : str, optional
+            Which drag coefficient to read in. May be 'total', 'friction', or 'pressure'.
+            Defaults to 'total'.
 
         verbose : bool, optional
             Defaults to True
@@ -1976,7 +1981,12 @@ class Airfoil:
             Display Xfoil plots. Defaults to True.
         
         resize_xfoil_window : float, optional
-            resizes the xfoil window to screen size fraction. Xfoil defaults to 0.8 window/screen size. This variable defaults to None. Has no effect if show_xfoil_plots is False.
+            resizes the xfoil window to screen size fraction. Xfoil defaults to 0.8 window/screen size.
+            This variable defaults to None. Has no effect if show_xfoil_plots is False.
+
+        CD_type : str, optional
+            Which drag coefficient to read in. May be 'total', 'friction', or 'pressure'.
+            Defaults to 'total'.
 
         verbose : bool, optional
 
@@ -2190,7 +2200,7 @@ class Airfoil:
 
                     # Read in file
                     try:
-                        alpha_i, CL_i, CD_i, Cm_i, Re_i, M_i = self.read_pacc_file(filename)
+                        alpha_i, CL_i, CD_i, Cm_i, Re_i, M_i = self.read_pacc_file(filename, CD_type=kwargs.get('CD_type', 'total'))
                     except FileNotFoundError:
                         warnings.warn("Couldn't find results file {0}. Usually an indication of Xfoil crashing.".format(filename))
                         continue
@@ -2228,13 +2238,17 @@ class Airfoil:
         return CL, CD, Cm
 
 
-    def read_pacc_file(self, filename):
+    def read_pacc_file(self, filename, CD_type='total'):
         """Reads in and formats an Xfoil polar accumulation file.
 
         Parameters
         ----------
         filename : str
             File to read in.
+
+        CD_type : str, optional
+            Which drag coefficient to read in. May be 'total', 'friction', or 'pressure'.
+            Defaults to 'total'.
 
         Returns
         -------
@@ -2281,7 +2295,12 @@ class Airfoil:
             split_line = line.split()
             alpha.append(math.radians(float(split_line[0])))
             CL.append(float(split_line[1]))
-            CD.append(float(split_line[2]))
+            if CD_type=='total':
+                CD.append(float(split_line[2]))
+            elif CD_type=='pressure':
+                CD.append(float(split_line[3]))
+            elif CD_type=='friction':
+                CD.append(float(split_line[2])-float(split_line[3]))
             Cm.append(float(split_line[4]))
 
         # Sort in alpha
@@ -2738,7 +2757,7 @@ class Airfoil:
         if linear_limits is None:
             alpha = np.linspace(-20.0, 20.0, 30)
         else:
-            alpha = np.linspace(linear_limits[0], linear_limits[1])
+            alpha = np.linspace(linear_limits[0], linear_limits[1], 30)
 
         # Generate dataset
         CL = np.zeros(30)
