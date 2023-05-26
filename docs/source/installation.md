@@ -32,7 +32,7 @@ You can either download the source as a ZIP file and extract the contents, or cl
 
 ### Cloning the Github repository
 
-1. From the command prompt navigate to the directory where AirfoilDatabase will be installed. Note: git will automatically create a folder within this directory called MachUpX. Keep this in mind if you do not want multiple nested folders called AirfoilDatabase.
+1. From the command prompt navigate to the directory where AirfoilDatabase will be installed. Note: git will automatically create a folder within this directory called AirfoilDatabase. Keep this in mind if you do not want multiple nested folders called AirfoilDatabase.
 2. Execute `git clone https://github.com/usuaero/AirfoilDatabase`
 
 ## Installing

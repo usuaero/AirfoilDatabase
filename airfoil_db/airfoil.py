@@ -267,6 +267,10 @@ class Airfoil:
             # Array given
             if isinstance(outline_points, np.ndarray):
                 self._raw_outline = outline_points
+
+            # 2D list given
+            elif isinstance(outline_points, list):
+                self._raw_outline = np.array(outline_points)
             
             # File
             else:
