@@ -1729,10 +1729,11 @@ class Airfoil:
             and the bottom. If a list, the first list element is the top trip location and the second list element
             is the bottom trip location. Defaults to 1.0 for both.
 
-        N_crit : float or list, optional
-            Critical amplification exponent for the boundary layer in Xfoil. If a float, the value is the same for
-            the top and the bottom. If a list, the first list element is for the top and the second list element is
-            for the bottom. Defaults to 9.0 for both.
+        visc : bool, optional
+            Whether to include viscosity. Defaults to True.
+
+        N_crit : float, optional
+            Critical amplification exponent for the boundary layer in Xfoil. Defaults to 9.0.
 
         update_type : bool, optional
             Whether to update the airfoil to use the newly computed database for calculations. Defaults to True.
@@ -1976,10 +1977,8 @@ class Airfoil:
             x-y coordinates, non-dimensionalized by the chord length, of the reference point for determining the
             moment coefficient. Defaults to the quater-chord.
 
-        N_crit : float or list, optional
-            Critical amplification exponent for the boundary layer in Xfoil. If a float, the value is the same for
-            the top and the bottom. If a list, the first list element is for the top and the second list element is
-            for the bottom. Defaults to 9.0 for both.
+        N_crit : float, optional
+            Critical amplification exponent for the boundary layer in Xfoil. Defaults to 9.0.
 
         show_xfoil_output : bool, optional
             Display whatever Xfoil outputs from the command line interface. Defaults to False.
@@ -2016,9 +2015,7 @@ class Airfoil:
         xycm = kwargs.get("xycm", [0.25, 0.0])
         if isinstance(x_trip, float):
             x_trip = [x_trip, x_trip]
-        N_crit = kwargs.get("N_crit", [9.0, 9.0])
-        if isinstance(N_crit, float):
-            N_crit = [N_crit, N_crit]
+        N_crit = kwargs.get("N_crit", 9.0)
 
         # Get states
         # Angle of attack
@@ -2139,10 +2136,8 @@ class Airfoil:
                                          'Xtr',
                                          str(x_trip[0]),
                                          str(x_trip[1]),
-                                         'NT',
-                                         str(N_crit[0]),
-                                         'NB',
-                                         str(N_crit[1]),
+                                         'N',
+                                         str(N_crit),
                                          '',
                                          '']
 
@@ -2204,7 +2199,6 @@ class Airfoil:
                                      'QUIT']
 
                         # Run Xfoil
-                        print(commands)
                         xfoil_input = '\r'.join(commands).encode('utf-8')
                         response = xfoil_process.communicate(xfoil_input)
 
@@ -2215,7 +2209,7 @@ class Airfoil:
                                 print(response[1].decode('utf-8'))
 
                 # Clean up geometry
-                #os.remove(outline_points)
+                os.remove(outline_points)
 
                 # Read in files and store arrays
                 for filename in pacc_files:
