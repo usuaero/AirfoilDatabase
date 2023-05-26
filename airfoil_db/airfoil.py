@@ -1959,6 +1959,9 @@ class Airfoil:
         max_iter : int, optional
             Maximum iterations for Xfoil. Defaults to 100.
 
+        visc : bool, optional
+            Whether to include viscosity. Defaults to True.
+
         x_trip : float or list, optional
             x location, non-dimensionalized by the chord length, of the boundary layer trip position. This is 
             specified for the top and bottom of the airfoil. If a float, the value is the same for the top
@@ -2072,6 +2075,7 @@ class Airfoil:
                 
                 # Clear pacc file list
                 pacc_files = []
+                file_id = 0
             
                 # Export geometry
                 outline_points = "a_{0:1.6f}_{1:1.6f}.geom".format(delta_ft, c_ft)
@@ -2105,7 +2109,8 @@ class Airfoil:
                         commands += ['LOAD {0}'.format(outline_points),
                                      '{0}'.format(self.name)]
 
-                        # Set panelling ratio and let Xfoil makes its own panels
+                        # Set panelling ratio and let Xfoil make its own panels
+                        # This throws a fortran error if the plots are turned off with Xfoil 6.99
                         commands += ['PPAR',
                                      'N',
                                      '{0}'.format(N),
@@ -2119,42 +2124,54 @@ class Airfoil:
                                      str(xycm[0]),
                                      str(xycm[1])]
 
-                        # Set viscous mode
-                        commands += ['OPER',
-                                     'VISC',
-                                     '']
-                        pacc_index = 0
+                        # Set viscous mode (if desired)
+                        if kwargs.get("visc", True):
+                            commands += ['OPER',
+                                         'VISC',
+                                         '']
 
-                        # Set boundary layer parameters
-                        commands += ['VPAR',
-                                     'Xtr',
-                                     str(x_trip[0]),
-                                     str(x_trip[1]),
-                                     'NT',
-                                     str(N_crit[0]),
-                                     'NB',
-                                     str(N_crit[1]),
-                                     '',
-                                     '']
+                            # Set boundary layer parameters
+                            commands += ['VPAR',
+                                         'Xtr',
+                                         str(x_trip[0]),
+                                         str(x_trip[1]),
+                                         'NT',
+                                         str(N_crit[0]),
+                                         'NB',
+                                         str(N_crit[1]),
+                                         '',
+                                         '']
+
+                        # Initialize PACC index
+                        pacc_index = 0
 
                         # Loop through Mach numbers
                         for M in Machs:
 
                             # Polar accumulation file
-                            file_id = str(np.random.randint(0, 10000))
+                            file_id += 1
                             pacc_file = "xfoil_results_{0}.pacc".format(file_id)
                             pacc_files.append(pacc_file)
 
                             # Set Mach, Reynolds number, iteration limit, and polar accumulation
-                            commands += ['OPER',
-                                        'RE',
-                                        str(Re),
-                                        'MACH',
-                                        str(M),
-                                        'ITER {0}'.format(max_iter),
-                                        'PACC',
-                                        pacc_file,
-                                        '']
+                            if kwargs.get("visc", True):
+                                commands += ['OPER',
+                                            'RE',
+                                            str(Re),
+                                            'MACH',
+                                            str(M),
+                                            'ITER {0}'.format(max_iter),
+                                            'PACC',
+                                            pacc_file,
+                                            '']
+                            else:
+                                commands += ['OPER',
+                                            'MACH',
+                                            str(M),
+                                            'ITER {0}'.format(max_iter),
+                                            'PACC',
+                                            pacc_file,
+                                            '']
 
                             # Sweep from 0 aoa up
                             zero_ind = np.argmin(np.abs(alphas))
@@ -2183,6 +2200,7 @@ class Airfoil:
                                      'QUIT']
 
                         # Run Xfoil
+                        print(commands)
                         xfoil_input = '\r'.join(commands).encode('utf-8')
                         response = xfoil_process.communicate(xfoil_input)
 
@@ -2193,7 +2211,7 @@ class Airfoil:
                                 print(response[1].decode('utf-8'))
 
                 # Clean up geometry
-                os.remove(outline_points)
+                #os.remove(outline_points)
 
                 # Read in files and store arrays
                 for filename in pacc_files:
