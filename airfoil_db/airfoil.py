@@ -2172,19 +2172,24 @@ class Airfoil:
                                             pacc_file,
                                             '']
 
-                            # Sweep from 0 aoa up
-                            zero_ind = np.argmin(np.abs(alphas))
-                            if zero_ind != len(alphas)-1:
-                                for a in alphas[zero_ind:]:
-                                    commands.append('ALFA {0:1.6f}'.format(math.degrees(a)))
-                            
-                            # Reset solver
-                            commands.append('INIT')
+                            # Sweep angle of attack
+                            if len(alphas) == 1:
+                                commands.append('ALFA {0:1.6f}'.format(math.degrees(alphas[0])))
 
-                            # Sweep from 0 aoa down
-                            if zero_ind != 0:
-                                for a in alphas[zero_ind-1::-1]:
-                                    commands.append('ALFA {0:1.6f}'.format(math.degrees(a)))
+                            else:
+                                # Sweep from 0 aoa up
+                                zero_ind = np.argmin(np.abs(alphas))
+                                if zero_ind != len(alphas)-1:
+                                    for a in alphas[zero_ind:]:
+                                        commands.append('ALFA {0:1.6f}'.format(math.degrees(a)))
+                            
+                                # Reset solver
+                                commands.append('INIT')
+
+                                # Sweep from 0 aoa down
+                                if zero_ind != 0:
+                                    for a in alphas[zero_ind-1::-1]:
+                                        commands.append('ALFA {0:1.6f}'.format(math.degrees(a)))
                             
                             # Reset solver
                             commands.append('INIT')

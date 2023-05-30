@@ -54,7 +54,8 @@ dofs = {
 }
 
 # Generate or import database
-airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, show_xfoil_plots=True, show_xfoil_output=False, visc=True)
+#airfoil.generate_database(degrees_of_freedom=dofs, max_iter=100, show_xfoil_plots=True, show_xfoil_output=False, visc=True)
+airfoil.run_xfoil(alpha=0.0, show_xfoil_output=True)
 #airfoil.export_database(filename="database.txt")
 #airfoil.import_database(filename="database.txt")
 print("Imported database")
