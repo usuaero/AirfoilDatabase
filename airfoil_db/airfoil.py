@@ -1563,7 +1563,6 @@ class Airfoil:
             return X, Y, 0
 
 
-
     def _fill_surface(self, X, Y, x_h, y_h, r, x_break, num_points, direction):
         # Fills in num_points along the arc defined by x_h, y_h, and r
 
@@ -2835,8 +2834,8 @@ class Airfoil:
 
         # Get CL model
         coef_array = np.polyfit(alpha, CL, 1)
-        self._aL0 = coef_array[1]
         self._CLa = coef_array[0]
+        self._aL0 = -coef_array[1]/self._CLa
         self._CL_max = np.max(CL)
 
         # Get Cm model
