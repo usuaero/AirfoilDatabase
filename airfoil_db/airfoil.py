@@ -2703,7 +2703,7 @@ class Airfoil:
             
             # Check for array of size 1
             if not np.isscalar(ind_var) and len(ind_var) == 1:
-                ind_vars.append(np.asscalar(ind_var))
+                ind_vars.append(ind_var.item())
             else:
                 ind_vars.append(ind_var)
 
